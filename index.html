@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valorant Training Mode</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>Training Mode</h1>
+  <div class="bar">
+    <label>Difficulty
+      <select id="difficulty">
+        <option value="easy">Easy</option>
+        <option value="medium" selected>Medium</option>
+        <option value="hard">Hard</option>
+      </select>
+    </label>
+    <div class="stat">Time <b id="time">60</b></div>
+    <div class="stat">Score <b id="score">0</b></div>
+    <div class="stat">Accuracy <b id="acc">0%</b></div>
+    <div class="stat">Best <b id="best">0</b></div>
+  </div>
+  <canvas id="game" width="960" height="540"></canvas>
+  <p class="hint">Head shot = 150 pts, body shot = 50 pts. 60 seconds.</p>
+</main>
+<script src="script.js"></script>
+</body>
+</html>
