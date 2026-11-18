@@ -7,9 +7,24 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main>
-  <h1>Training Mode</h1>
-  <div class="bar">
+<div id="wrap"></div>
+<div id="hud">
+  <span>Time <b id="time">60</b></span>
+  <span>Score <b id="score">0</b></span>
+  <span>Accuracy <b id="acc">0%</b></span>
+  <span>Best <b id="best">0</b></span>
+</div>
+<div id="crosshair"></div>
+<div id="hit">X</div>
+<div id="toast"></div>
+<div id="overlay">
+  <div class="card">
+    <h2 id="title">Training Mode</h2>
+    <p id="info">Click Play, then shoot the bots. Aim for the head.</p>
+    <label>Sensitivity
+      <input type="range" id="sensRange" min="0.05" max="2" step="0.01" value="0.4">
+      <input type="number" id="sensNum" min="0.05" max="2" step="0.01" value="0.4">
+    </label>
     <label>Difficulty
       <select id="difficulty">
         <option value="easy">Easy</option>
@@ -17,14 +32,14 @@
         <option value="hard">Hard</option>
       </select>
     </label>
-    <div class="stat">Time <b id="time">60</b></div>
-    <div class="stat">Score <b id="score">0</b></div>
-    <div class="stat">Accuracy <b id="acc">0%</b></div>
-    <div class="stat">Best <b id="best">0</b></div>
+    <div class="btns">
+      <button id="play">Play</button>
+      <button id="restart" hidden>Restart</button>
+    </div>
+    <p class="small">Mouse = aim. Left click = shoot. WASD = move. Esc = pause. Headshot 150, body 50. 60 seconds.</p>
   </div>
-  <canvas id="game" width="960" height="540"></canvas>
-  <p class="hint">Head shot = 150 pts, body shot = 50 pts. 60 seconds.</p>
-</main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="script.js"></script>
 </body>
 </html>

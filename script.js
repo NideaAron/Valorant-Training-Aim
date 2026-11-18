@@ -1,140 +1,217 @@
-const cv = document.getElementById('game');
-const ctx = cv.getContext('2d');
-const W = cv.width, H = cv.height;
 const $ = id => document.getElementById(id);
-const LEVELS = {
-  easy:   { life: 2200, gap: 800, max: 2, size: 1.2 },
-  medium: { life: 1500, gap: 550, max: 3, size: 1.0 },
-  hard:   { life: 1000, gap: 380, max: 4, size: 0.8 }
-};
 const DURATION = 60;
-let state = 'idle', bots = [], mouse = { x: W / 2, y: H / 2 };
-let score = 0, shots = 0, hits = 0, heads = 0, startTime = 0, lastSpawn = 0, flashes = [];
+const LEVELS = {
+  easy:   { life: 3200, gap: 700, max: 3, move: 0 },
+  medium: { life: 2400, gap: 500, max: 4, move: 1.5 },
+  hard:   { life: 1600, gap: 350, max: 5, move: 3.2 }
+};
 
-function bestKey() { return 'vtm_best_' + $('difficulty').value; }
-function loadBest() {
-  try { $('best').textContent = localStorage.getItem(bestKey()) || 0; }
-  catch (e) { $('best').textContent = 0; }
+// ---------- scene ----------
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8fd3ff);
+scene.fog = new THREE.Fog(0x8fd3ff, 30, 70);
+const camera = new THREE.PerspectiveCamera(80, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 1.6, 0);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+$('wrap').appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.6);
+sun.position.set(5, 10, 5);
+scene.add(sun);
+
+function box(w, h, d, color, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
+  m.position.set(x, y, z);
+  scene.add(m);
+  return m;
 }
+// checker floor
+const c = document.createElement('canvas'); c.width = c.height = 64;
+const g = c.getContext('2d');
+g.fillStyle = '#7a8794'; g.fillRect(0, 0, 64, 64);
+g.fillStyle = '#6a7683'; g.fillRect(0, 0, 32, 32); g.fillRect(32, 32, 32, 32);
+const tex = new THREE.CanvasTexture(c);
+tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(20, 30); tex.magFilter = THREE.NearestFilter;
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 60), new THREE.MeshLambertMaterial({ map: tex }));
+floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -25);
+scene.add(floor);
+box(40, 10, 1, 0x3b4a5c, 0, 5, -55);      // back wall
+box(1, 10, 60, 0x4a5b70, -20, 5, -25);    // left wall
+box(1, 10, 60, 0x4a5b70, 20, 5, -25);     // right wall
+box(1, 10, 10, 0x4a5b70, 0, 5, 5);        // behind player
+[[-6, -14], [7, -20], [-10, -30], [11, -36], [0, -42]].forEach(p => box(2, 2, 2, 0xe08a2e, p[0], 1, p[1]));
+box(6, 0.2, 0.2, 0xff4655, 0, 0.1, -3); // start line
+
+// gun (blocky)
+const gun = new THREE.Group();
+const gb = (w, h, d, col, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: col })); m.position.set(x, y, z); gun.add(m); };
+gb(0.12, 0.14, 0.6, 0x222222, 0, 0, 0);
+gb(0.1, 0.22, 0.12, 0x222222, 0, -0.17, 0.15);
+gb(0.14, 0.16, 0.2, 0xff4655, 0, 0.02, -0.1);
+gun.position.set(0.35, -0.3, -0.7);
+camera.add(gun);
+
+// ---------- bots ----------
+let bots = [];
+function makeBot() {
+  const grp = new THREE.Group();
+  const mk = (w, h, d, col, x, y, part) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: col }));
+    m.position.set(x, y, 0); m.userData.part = part; m.userData.bot = grp; grp.add(m);
+  };
+  mk(0.35, 0.8, 0.3, 0x2b3a55, -0.18, 0.4, 'body');
+  mk(0.35, 0.8, 0.3, 0x2b3a55, 0.18, 0.4, 'body');
+  mk(0.75, 0.8, 0.4, 0xff4655, 0, 1.2, 'body');
+  mk(0.3, 0.8, 0.3, 0xff4655, -0.55, 1.2, 'body');
+  mk(0.3, 0.8, 0.3, 0xff4655, 0.55, 1.2, 'body');
+  mk(0.5, 0.5, 0.5, 0xffd23f, 0, 1.85, 'head');
+  return grp;
+}
+function spawnBot(now, L) {
+  const b = makeBot();
+  b.position.set((Math.random() - 0.5) * 24, 0, -(8 + Math.random() * 30));
+  b.userData.born = now;
+  b.userData.life = L.life;
+  b.userData.vx = L.move ? (Math.random() < 0.5 ? -1 : 1) * L.move * (0.5 + Math.random() * 0.5) : 0;
+  scene.add(b); bots.push(b);
+}
+function removeBot(b) { scene.remove(b); bots = bots.filter(x => x !== b); }
+
+// ---------- state ----------
+let state = 'idle', score = 0, shots = 0, hits = 0, heads = 0;
+let startTime = 0, pauseAt = 0, lastSpawn = 0, lastShot = 0, yaw = 0, pitch = 0;
+let level = LEVELS.medium;
+const keys = {};
+const ray = new THREE.Raycaster();
+let audio;
+
+function bestKey() { return 'vtm3d_best_' + $('difficulty').value; }
+function loadBest() { try { $('best').textContent = localStorage.getItem(bestKey()) || 0; } catch (e) { $('best').textContent = 0; } }
 function saveBest() {
-  try {
-    const old = Number(localStorage.getItem(bestKey()) || 0);
-    if (score > old) localStorage.setItem(bestKey(), score);
-  } catch (e) {}
+  try { if (score > Number(localStorage.getItem(bestKey()) || 0)) localStorage.setItem(bestKey(), score); } catch (e) {}
   loadBest();
 }
-
-function start() {
-  score = shots = hits = heads = 0; bots = []; flashes = [];
-  startTime = performance.now(); lastSpawn = 0; state = 'playing';
-  updateHud(DURATION);
-}
-
-function spawn(now) {
-  const L = LEVELS[$('difficulty').value];
-  const s = 40 * L.size;
-  bots.push({
-    x: 80 + Math.random() * (W - 160),
-    y: 90 + Math.random() * (H - 150),
-    s, born: now, life: L.life
-  });
-}
-
-function updateHud(left) {
+function hud(left) {
   $('time').textContent = Math.max(0, Math.ceil(left));
   $('score').textContent = score;
   $('acc').textContent = (shots ? Math.round(hits / shots * 100) : 0) + '%';
 }
-
-function hitTest(b, x, y) {
-  const hx = b.x, hy = b.y - b.s * 1.45, hr = b.s * 0.38;
-  if (Math.hypot(x - hx, y - hy) <= hr) return 'head';
-  if (Math.abs(x - b.x) <= b.s * 0.6 && y >= b.y - b.s * 1.05 && y <= b.y + b.s * 0.9) return 'body';
-  return null;
+function beep(f, d) {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audio.createOscillator(), v = audio.createGain();
+    o.frequency.value = f; o.type = 'square'; v.gain.value = 0.05;
+    o.connect(v); v.connect(audio.destination); o.start(); o.stop(audio.currentTime + d);
+  } catch (e) {}
+}
+function startGame() {
+  bots.slice().forEach(removeBot);
+  score = shots = hits = heads = 0; yaw = pitch = 0;
+  camera.position.set(0, 1.6, 0);
+  level = LEVELS[$('difficulty').value];
+  startTime = performance.now(); lastSpawn = 0; state = 'playing';
+  hud(DURATION);
 }
 
-function shoot() {
-  if (state !== 'playing') { start(); return; }
-  shots++;
-  for (let i = bots.length - 1; i >= 0; i--) {
-    const r = hitTest(bots[i], mouse.x, mouse.y);
-    if (r) {
-      hits++;
-      if (r === 'head') { score += 150; heads++; } else { score += 50; }
-      flashes.push({ x: mouse.x, y: mouse.y, t: performance.now(), head: r === 'head' });
-      bots.splice(i, 1);
-      return;
-    }
+// ---------- sensitivity ----------
+let sens = 0.4;
+try { sens = Number(localStorage.getItem('vtm3d_sens')) || 0.4; } catch (e) {}
+function setSens(v) {
+  v = Math.min(2, Math.max(0.05, Number(v) || 0.4));
+  sens = v; $('sensRange').value = v; $('sensNum').value = v;
+  try { localStorage.setItem('vtm3d_sens', v); } catch (e) {}
+}
+setSens(sens);
+$('sensRange').addEventListener('input', e => setSens(e.target.value));
+$('sensNum').addEventListener('change', e => setSens(e.target.value));
+$('difficulty').addEventListener('change', loadBest);
+
+// ---------- input ----------
+const el = renderer.domElement;
+$('play').addEventListener('click', () => el.requestPointerLock());
+$('restart').addEventListener('click', () => { state = 'idle'; el.requestPointerLock(); });
+document.addEventListener('pointerlockchange', () => {
+  const locked = document.pointerLockElement === el;
+  $('overlay').classList.toggle('hidden', locked);
+  if (locked) {
+    if (state === 'paused') { startTime += performance.now() - pauseAt; state = 'playing'; }
+    else startGame();
+  } else if (state === 'playing') {
+    state = 'paused'; pauseAt = performance.now();
+    $('title').textContent = 'Paused';
+    $('info').textContent = 'Change your sensitivity here, then resume.';
+    $('play').textContent = 'Resume';
+    $('restart').hidden = false;
   }
-}
+});
+document.addEventListener('mousemove', e => {
+  if (document.pointerLockElement !== el) return;
+  const k = sens * 0.07 * Math.PI / 180;
+  yaw -= e.movementX * k;
+  pitch = Math.max(-1.5, Math.min(1.5, pitch - e.movementY * k));
+});
+document.addEventListener('keydown', e => { keys[e.code] = true; });
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+document.addEventListener('mousedown', e => {
+  if (e.button !== 0 || state !== 'playing' || document.pointerLockElement !== el) return;
+  const now = performance.now();
+  if (now - lastShot < 90) return;
+  lastShot = now; shots++; beep(180, 0.06);
+  gun.position.z = -0.55;
+  ray.setFromCamera({ x: 0, y: 0 }, camera);
+  const hit = ray.intersectObjects(bots, true)[0];
+  if (hit && hit.object.userData.bot) {
+    const head = hit.object.userData.part === 'head';
+    hits++; score += head ? 150 : 50; if (head) heads++;
+    removeBot(hit.object.userData.bot);
+    beep(head ? 900 : 500, 0.08);
+    const h = $('hit'); h.className = 'show' + (head ? ' head' : '');
+    setTimeout(() => h.className = '', 120);
+    if (head) { $('toast').textContent = 'HEADSHOT'; setTimeout(() => $('toast').textContent = '', 400); }
+  }
+});
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
 
-function drawBot(b, now) {
-  const age = (now - b.born) / b.life;
-  ctx.globalAlpha = 1 - Math.max(0, age - 0.7) * 2;
-  ctx.fillStyle = '#ff4655';
-  ctx.fillRect(b.x - b.s * 0.6, b.y - b.s * 1.05, b.s * 1.2, b.s * 1.95);
-  ctx.fillStyle = '#ece8e1';
-  ctx.beginPath(); ctx.arc(b.x, b.y - b.s * 1.45, b.s * 0.38, 0, 7); ctx.fill();
-  ctx.globalAlpha = 1;
-}
-
-function drawCrosshair() {
-  const { x, y } = mouse;
-  ctx.strokeStyle = '#00ff9c'; ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x - 14, y); ctx.lineTo(x - 5, y);
-  ctx.moveTo(x + 5, y); ctx.lineTo(x + 14, y);
-  ctx.moveTo(x, y - 14); ctx.lineTo(x, y - 5);
-  ctx.moveTo(x, y + 5); ctx.lineTo(x, y + 14);
-  ctx.stroke();
-}
-
-function centerText(lines) {
-  ctx.fillStyle = 'rgba(15,25,35,.85)'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#ece8e1'; ctx.textAlign = 'center';
-  lines.forEach((l, i) => {
-    ctx.font = (i === 0 ? 'bold 40px' : '22px') + ' Arial';
-    ctx.fillStyle = i === 0 ? '#ff4655' : '#ece8e1';
-    ctx.fillText(l, W / 2, H / 2 - 50 + i * 40);
-  });
-}
-
-function frame(now) {
-  ctx.clearRect(0, 0, W, H);
-  ctx.strokeStyle = '#1f2d3a'; ctx.lineWidth = 1;
-  for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+// ---------- loop ----------
+let prev = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+  gun.position.z += (-0.7 - gun.position.z) * 0.3;
+  camera.rotation.y = yaw; camera.rotation.x = pitch;
 
   if (state === 'playing') {
-    const left = DURATION - (now - startTime) / 1000;
-    const L = LEVELS[$('difficulty').value];
-    bots = bots.filter(b => now - b.born < b.life);
-    if (bots.length < L.max && now - lastSpawn > L.gap) { spawn(now); lastSpawn = now; }
-    bots.forEach(b => drawBot(b, now));
-    flashes = flashes.filter(f => now - f.t < 300);
-    flashes.forEach(f => {
-      ctx.fillStyle = f.head ? '#ffd23f' : '#ece8e1'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center';
-      ctx.fillText(f.head ? 'HEADSHOT +150' : '+50', f.x, f.y - 20 - (now - f.t) / 15);
-    });
-    updateHud(left);
-    if (left <= 0) { state = 'over'; saveBest(); }
-  } else if (state === 'idle') {
-    centerText(['Click to start', 'Shoot the bots. Aim for the head.']);
-  } else {
-    const acc = shots ? Math.round(hits / shots * 100) : 0;
-    centerText(['Time is up', 'Score: ' + score, 'Accuracy: ' + acc + '%   Headshots: ' + heads, 'Click to play again']);
-  }
-  drawCrosshair();
-  requestAnimationFrame(frame);
-}
+    const sp = 5 * dt;
+    const fx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), fz = (keys.KeyS ? 1 : 0) - (keys.KeyW ? 1 : 0);
+    camera.position.x = Math.max(-9, Math.min(9, camera.position.x + (fx * Math.cos(yaw) + fz * Math.sin(yaw)) * sp));
+    camera.position.z = Math.max(-3, Math.min(3, camera.position.z + (-fx * Math.sin(yaw) + fz * Math.cos(yaw)) * sp));
 
-function pos(e) {
-  const r = cv.getBoundingClientRect();
-  mouse.x = (e.clientX - r.left) * W / r.width;
-  mouse.y = (e.clientY - r.top) * H / r.height;
+    bots.slice().forEach(b => {
+      if (now - b.userData.born > b.userData.life) { removeBot(b); return; }
+      b.position.x += b.userData.vx * dt;
+      if (Math.abs(b.position.x) > 14) b.userData.vx *= -1;
+    });
+    if (bots.length < level.max && now - lastSpawn > level.gap) { spawnBot(now, level); lastSpawn = now; }
+
+    const left = DURATION - (now - startTime) / 1000;
+    hud(left);
+    if (left <= 0) {
+      state = 'over'; saveBest();
+      const acc = shots ? Math.round(hits / shots * 100) : 0;
+      $('title').textContent = 'Time is up';
+      $('info').textContent = 'Score ' + score + ' | Accuracy ' + acc + '% | Headshots ' + heads;
+      $('play').textContent = 'Play again';
+      $('restart').hidden = true;
+      document.exitPointerLock();
+    }
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
 }
-cv.addEventListener('mousemove', pos);
-cv.addEventListener('pointerdown', e => { pos(e); shoot(); });
-$('difficulty').addEventListener('change', () => { state = 'idle'; bots = []; loadBest(); updateHud(DURATION); });
 loadBest();
-requestAnimationFrame(frame);
+requestAnimationFrame(loop);
