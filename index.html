@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valorant Training Mode</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="wrap"></div>
+<div id="hud">
+  <div class="hud-item"><small>SCORE</small><b id="score">0</b></div>
+  <div class="hud-item"><small>ACCURACY</small><b id="acc">0%</b></div>
+  <div class="hud-item"><small>BEST</small><b id="best">0</b></div>
+  <div class="hud-item weapon-item"><small>WEAPON</small><b id="wep">VANDAL</b></div>
+  <div class="hud-item ammo-item"><small>AMMO</small><b id="ammo">25/25</b></div>
+</div>
+<div id="worldTimer" aria-live="polite">30</div>
+<div id="crosshair"></div>
+<div id="adsOverlay" aria-hidden="true"><div class="ads-reticle"><i></i><b></b><span class="ads-dot"></span></div><span class="ads-label">TACTICAL AIM</span></div>
+<div id="hit">X</div>
+<div id="toast"></div>
+<div id="overlay">
+  <div class="card">
+    <h2 id="title">Start Training Aim</h2>
+    <p id="info">Choose your settings, then start training. Aim for the head!</p>
+    <label>Sensitivity
+      <input type="range" id="sensRange" min="0.05" max="2" step="0.01" value="0.4">
+      <input type="number" id="sensNum" min="0.05" max="2" step="0.01" value="0.4">
+    </label>
+    <label>Training Time
+      <select id="duration">
+        <option value="10">10 seconds</option>
+        <option value="20">20 seconds</option>
+        <option value="30" selected>30 seconds</option>
+      </select>
+    </label>
+<label>Weapon
+      <select id="weapon">
+        <option value="vandal">Vandal</option>
+        <option value="phantom">Phantom</option>
+      </select>
+    </label>
+    <label>Difficulty
+      <select id="difficulty">
+        <option value="easy">Easy</option>
+        <option value="medium" selected>Medium</option>
+        <option value="hard">Hard</option>
+      </select>
+    </label>
+    <label>Name <input type="text" id="name" maxlength="16" value="Player"></label>
+    <details>
+      <summary>Settings (FOV, crosshair)</summary>
+      <label>FOV <input type="range" id="fov" min="60" max="110" value="80"><b id="fovv">80</b></label>
+      <label>Crosshair color <input type="color" id="xhColor" value="#00ff9c"></label>
+      <label>Length <input type="range" id="xhLen" min="0" max="20" value="8"></label>
+      <label>Thickness <input type="range" id="xhThick" min="1" max="5" value="2"></label>
+      <label>Gap <input type="range" id="xhGap" min="0" max="12" value="4"></label>
+      <label><input type="checkbox" id="xhDot" checked> Center dot</label>
+    </details>
+    <div class="btns">
+      <button id="play">Start Training Aim</button>
+      <button id="restart" hidden>Restart</button>
+    </div>
+    <h3 id="lbh">Leaderboard</h3>
+    <ol id="lb"></ol>
+    <p class="small">Mouse = aim. Hold right click = ADS (Vandal / Phantom). Left click = shoot. WASD = move. Hold click = spray. 1 = Vandal, Weapon menu = Vandal / Phantom, 2 = Pistol, 3 = Knife. Hold Ctrl (or C) = crouch. Hold Shift = walk. R = reload. Esc = pause. Headshot 150, body 50. Choose 10, 20, or 30 seconds.</p>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

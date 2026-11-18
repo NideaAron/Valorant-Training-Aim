@@ -1,0 +1,62 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; font-family: Arial, Helvetica, sans-serif; color: #eaf0f6; background: #202a35; user-select: none; }
+#wrap, canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#hud { position: fixed; z-index: 3; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; gap: 0; padding: 0; min-height: 62px; color: #f4f6f8; background: rgba(13, 19, 27, .88); border: 1px solid rgba(205, 218, 230, .32); border-top: 3px solid #ff4655; border-radius: 5px; box-shadow: 0 8px 26px rgba(0,0,0,.3); backdrop-filter: blur(8px); white-space: nowrap; }
+.hud-item { min-width: 100px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; padding: 7px 17px; border-right: 1px solid rgba(255,255,255,.12); }
+.hud-item:last-child { border-right: 0; }
+.hud-item small { color: #9daab8; font-size: 10px; font-weight: 800; letter-spacing: 1.5px; }
+.hud-item b { color: #f5f7fa; font-size: 21px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.weapon-item b { color: #ff5966; text-transform: uppercase; font-size: 17px; }
+.ammo-item b { color: #dce6ef; font-size: 17px; }
+#crosshair { position: fixed; z-index: 4; top: 50%; left: 50%; width: 0; height: 0; pointer-events: none; }
+#crosshair i { position: absolute; display: block; }
+#hit { position: fixed; z-index: 4; top: 50%; left: 50%; transform: translate(-50%, -50%); font: bold 28px Arial; color: #fff; text-shadow: 0 0 3px #000; opacity: 0; pointer-events: none; }
+#hit.show { opacity: 1; }
+#hit.head { color: #ff4655; }
+#toast { position: fixed; z-index: 4; top: 38%; left: 50%; transform: translateX(-50%); font: bold 22px Arial; color: #fff; text-shadow: 0 0 4px #000; pointer-events: none; }
+#overlay { position: fixed; z-index: 5; inset: 0; padding: 12px; background: rgba(5, 10, 16, .72); display: flex; align-items: center; justify-content: center; }
+#overlay.hidden { display: none; }
+.card { max-height: 94vh; overflow-y: auto; background: #151e29; color: #eaf0f6; border: 1px solid #526171; border-top: 4px solid #ff4655; border-radius: 10px; box-shadow: 0 18px 55px rgba(0,0,0,.48); padding: 18px 20px; width: min(92vw, 390px); }
+.card h2 { margin: 0 0 8px; color: #fff; letter-spacing: .3px; }
+.card p { margin: 0 0 12px; color: #b8c4d0; }
+.card label { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: #dce4ed; }
+.card input[type=range] { flex: 1; }
+.card input[type=number] { width: 64px; }
+.btns { display: flex; gap: 8px; }
+button { flex: 1; padding: 10px; font-weight: 800; letter-spacing: .4px; background: #ff4655; color: #fff; border: 1px solid #ff6874; border-radius: 5px; cursor: pointer; }
+button:hover { background: #e83b4b; }
+.small { font-size: 12px; margin: 10px 0 0 !important; }
+.card select, .card input[type=text], .card input[type=number] { flex: 1; min-height: 30px; padding: 4px 7px; color: #17212c; background: #edf2f6; border: 1px solid #9aa8b6; border-radius: 4px; }
+.card h3 { margin: 14px 0 5px; color: #fff; font-size: 15px; }
+#lb { margin: 0; padding-left: 22px; color: #d6e0e9; font-size: 13px; }
+details { margin-bottom: 10px; }
+summary { cursor: pointer; font-weight: bold; margin-bottom: 6px; color: #ff6874; }
+@media (max-width: 680px) { #hud { top: 6px; max-width: 96vw; } .hud-item { min-width: 0; padding: 7px 9px; } .hud-item b { font-size: 16px; } .hud-item small { font-size: 8px; letter-spacing: .8px; } .weapon-item b, .ammo-item b { font-size: 13px; } }
+
+/* Large in-world countdown positioned above the central training building. */
+#worldTimer {
+  position: fixed; z-index: 3; left: 50%; top: 38%; transform: translate(-50%, -50%);
+  display: none; pointer-events: none; color: #fff; font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(58px, 7vw, 104px); font-weight: 900; line-height: .9; letter-spacing: -4px;
+  font-variant-numeric: tabular-nums; text-shadow: 0 4px 0 rgba(0,0,0,.55), 0 0 22px rgba(0,0,0,.8);
+  -webkit-text-stroke: 1px rgba(255,255,255,.25);
+}
+#worldTimer.visible { display: block; }
+#worldTimer.urgent { color: #ff4655; text-shadow: 0 4px 0 rgba(0,0,0,.65), 0 0 26px rgba(255,70,85,.65); }
+
+/* Weapon selector intentionally lists rifles only; hotkeys 2 and 3 still select pistol and knife. */
+#hud, #worldTimer { user-select: none; }
+
+/* ADS view for Vandal / Phantom: smooth camera FOV zoom with a restrained optic reticle. */
+#adsOverlay { position:fixed; inset:0; z-index:3; pointer-events:none; opacity:0; visibility:hidden; transition:opacity .16s ease, visibility .16s; background:radial-gradient(circle at center, transparent 0 28%, rgba(0,0,0,.16) 38%, rgba(0,0,0,.72) 100%); }
+#adsOverlay.active { opacity:1; visibility:visible; }
+.ads-reticle { position:absolute; left:50%; top:50%; width:180px; height:180px; transform:translate(-50%,-50%); border:2px solid rgba(225,238,248,.72); border-radius:50%; box-shadow:0 0 0 2px rgba(0,0,0,.48), inset 0 0 22px rgba(0,0,0,.24); }
+.ads-reticle:before,.ads-reticle:after { content:""; position:absolute; background:rgba(220,240,255,.88); box-shadow:0 0 3px #000; }
+.ads-reticle:before { width:1px; height:28px; left:50%; top:-29px; }
+.ads-reticle:after { width:1px; height:28px; left:50%; bottom:-29px; }
+.ads-reticle i { position:absolute; width:28px; height:1px; left:-29px; top:50%; background:rgba(220,240,255,.88); box-shadow:0 0 3px #000; }
+.ads-reticle b { position:absolute; width:28px; height:1px; right:-29px; top:50%; background:rgba(220,240,255,.88); box-shadow:0 0 3px #000; }
+.ads-label { position:absolute; left:50%; top:calc(50% + 112px); transform:translateX(-50%); color:rgba(225,238,248,.78); font-size:10px; font-weight:800; letter-spacing:2px; text-shadow:0 1px 3px #000; }
+
+/* Small center dot remains visible inside the ADS scope while right mouse is held. */
+.ads-dot { position:absolute; left:50%; top:50%; width:5px; height:5px; border-radius:50%; transform:translate(-50%,-50%); background:#fff; border:1px solid rgba(0,0,0,.85); box-shadow:0 0 5px rgba(255,255,255,.85), 0 0 2px #000; }
