@@ -19,6 +19,19 @@
 <div id="worldTimer" aria-live="polite">30</div>
 <div id="crosshair"></div>
 <div id="adsOverlay" aria-hidden="true"><div class="ads-reticle"><i></i><b></b><span class="ads-dot"></span></div><span class="ads-label">TACTICAL AIM</span></div>
+<div id="scopeOverlay" aria-hidden="true">
+  <div class="scope-lens"></div>
+  <div class="scope-ring"></div>
+  <svg class="scope-reticle" viewBox="-100 -100 200 200">
+    <g stroke="#000" stroke-linecap="butt">
+      <path d="M-100 0H-12M12 0H100M0 -100V-12M0 12V100" stroke-width="1.5"/>
+      <path d="M-100 0H-42M42 0H100M0 12V100M-0 -100V-42" stroke-width="3.6"/>
+    </g>
+    <g fill="#000"><circle cx="-20" cy="0" r="1"/><circle cx="-30" cy="0" r="1"/><circle cx="20" cy="0" r="1"/><circle cx="30" cy="0" r="1"/><circle cx="0" cy="20" r="1"/><circle cx="0" cy="30" r="1"/></g>
+    <circle cx="0" cy="0" r=".9" fill="#ff3b3b"/>
+  </svg>
+  <span class="scope-mag" id="scopeMag">×2.5</span>
+</div>
 <div id="hit" aria-hidden="true">×</div>
 <div id="combatNotice" aria-live="polite" aria-atomic="true"></div>
 <div id="toast" aria-live="polite"></div>
@@ -56,10 +69,17 @@
       <label class="check"><input type="checkbox" id="infinite"> Infinite Training (no time limit)</label>
       <label>Weapon
         <select id="weapon">
-          <option value="vandal">Vandal</option>
-          <option value="phantom">Phantom</option>
+          <optgroup label="Primary (slot 1)">
+            <option value="vandal">Vandal</option>
+            <option value="phantom">Phantom</option>
+            <option value="operator">Operator (sniper)</option>
+            <option value="shotgun">Shotgun</option>
+          </optgroup>
+          <optgroup label="Sidearm (slot 2)"><option value="sheriff">Sheriff</option></optgroup>
+          <optgroup label="Melee (slot 3)"><option value="knife">Knife</option></optgroup>
         </select>
       </label>
+      <label class="check"><input type="checkbox" id="infAmmo"> Infinite Ammo</label>
       <label>Difficulty
         <select id="difficulty">
           <option value="easy">Easy</option>
@@ -92,7 +112,7 @@
       <div class="footer-label">PERSONAL BEST</div>
       <h3 id="lbh">Leaderboard</h3>
       <ol id="lb"></ol>
-      <p class="small">MOUSE Aim · LEFT CLICK Fire / Knife Slash · RIGHT CLICK ADS / Knife Alt Attack · WASD Move · CTRL/C Crouch · SHIFT Walk · SPACE Jump · R Reload · 1 Vandal · 2 Sheriff · 3 Knife · ESC Pause</p>
+      <p class="small">MOUSE Aim · LEFT CLICK Fire / Knife Slash · RIGHT CLICK ADS / Operator Scope (WHEEL = zoom) / Knife Alt Attack · WASD Move · CTRL/C Crouch · SHIFT Walk · SPACE Jump · R Reload · 1 Primary (Vandal / Phantom / Operator / Shotgun) · 2 Sheriff · 3 Knife · ESC Pause</p>
       <p class="small">Reserved browser shortcuts: Ctrl+W (close tab), Ctrl+T and Ctrl+N cannot be blocked by a webpage. Crouch with <b>C</b> instead of Ctrl, or press FULLSCREEN (Chrome/Edge) so the game can capture them. A "Leave site?" prompt also appears during a run.</p>
     </div>
   </main>

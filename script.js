@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
 const soundVolumeControl = document.getElementById('soundVolume');
-if (soundVolumeControl) soundVolumeControl.addEventListener('input', e => { masterVolume = Number(e.target.value); });
+if (soundVolumeControl) soundVolumeControl.addEventListener('input', e => { masterVolume = Number(e.target.value); try { localStorage.setItem('vtm3d_vol', e.target.value); } catch (err) {} });
 const RAD = Math.PI / 180;
 let DURATION = 30; // default training duration; selectable in the start screen
 
@@ -18,6 +18,8 @@ const WEAPONS = {
   vandal:  { name: 'Vandal',  interval: 103, p: 0.55, y: 0.35, auto: true, mag: 25, reload: 2.5 },
   phantom: { name: 'Phantom', interval: 90,  p: 0.42, y: 0.28, auto: true, mag: 30, reload: 2.3 },
   sheriff: { name: 'Sheriff', interval: 250, p: 2.2,  y: 0.5,  auto: false, mag: 6, reload: 2.2 },
+  operator: { name: 'Operator', interval: 1350, p: 4.2, y: 0.6, auto: false, mag: 5, reload: 3.4, sniper: true, bodyDmg: 3, hipSpread: 3.6 },
+  shotgun:  { name: 'Shotgun',  interval: 850,  p: 3.4, y: 0.7, auto: false, mag: 6, reload: 3.2, shell: true, pellets: 12, spread: 4.6, range: 32, pelletDmg: 0.34, headPelletDmg: 0.6 },
   knife:   { name: 'Knife',   interval: 550, melee: true, auto: true }
 };
 const CLEAR_SPAWNS = [[-8, -18], [8, -18], [-12, -30], [12, -30], [-8, -42], [8, -42], [0, -35], [0, -48]];
@@ -505,13 +507,13 @@ const magAssetCache = {};
 function makeMagGroup(kind) {
   let a = magAssetCache[kind];
   if (!a) {
-    const v = kind === 'vandal', d = v ? [.07, .29, .12] : [.075, .32, .14];
+    const v = kind === 'vandal', op = kind === 'operator', d = v ? [.07, .29, .12] : (op ? [.06, .2, .1] : [.075, .32, .14]);
     a = magAssetCache[kind] = {
       d,
       body: new THREE.BoxGeometry(d[0], d[1], d[2]),
       plate: new THREE.BoxGeometry(d[0] + .012, .028, d[2] + .012),
       round: new THREE.CylinderGeometry(.016, .016, .05, 8),
-      bodyMat: new THREE.MeshLambertMaterial({ color: v ? 0x554b78 : 0xa8a2b8 }),
+      bodyMat: new THREE.MeshLambertMaterial({ color: v ? 0x554b78 : (op ? 0x2c343d : 0xa8a2b8) }),
       plateMat: new THREE.MeshLambertMaterial({ color: 0x15161b }),
       roundMat: new THREE.MeshLambertMaterial({ color: 0xc9a24a })
     };
@@ -829,6 +831,80 @@ function buildGun(w) {
     leftHand(() => { hand(0,-.09,-.42,-1); arm([0,-.1,-.38],[-.28,-.5,.35]); });
     gun.position.set(.3,-.27,-.75); return;
   }
+  if (w.name === 'Operator') {
+    const steel = 0x1b2026, steel2 = 0x2c343d, trim = 0xb9c2cc, glow = 0x39d6c7, edge = 0x11151a;
+    mk(B(.11,.14,.72),steel,0,0,.02);                          // receiver
+    mk(B(.085,.03,.70),steel2,0,.085,.02);                     // top rail
+    for (let i=0;i<11;i++) mk(B(.075,.012,.02),edge,0,.103,-.30+i*.062);   // rail ticks
+    mk(B(.10,.105,.5),steel2,0,-.005,-.52);                    // forend (support hand rests under it)
+    mk(B(.014,.02,.46),glow,.058,.0,-.5);                      // forend light strip
+    mk(B(.014,.02,.46),glow,-.058,.0,-.5);
+    mk(C(.032,.62),steel,0,.012,-1.0,Math.PI/2);               // heavy barrel
+    mk(C(.05,.14),steel2,0,.012,-1.36,Math.PI/2);              // muzzle brake
+    for (let i=0;i<3;i++) mk(B(.112,.012,.03),edge,0,.012,-1.32-i*.04);    // brake slots
+    mk(C(.02,.01),0x000000,0,.012,-1.435,Math.PI/2);           // bore
+    mk(B(.09,.17,.45),steel2,0,-.03,.55,.06);                  // thumbhole stock
+    mk(B(.085,.07,.32),steel,0,.075,.52);                      // cheek riser
+    mk(B(.10,.2,.035),edge,0,-.03,.79,.06);                    // recoil pad
+    mk(B(.012,.2,.3),glow,-.047,-.03,.55,.06);                 // stock inlay
+    mk(B(.06,.19,.08),edge,0,-.13,.13,-.28);                   // pistol grip
+    mk(B(.012,.045,.012),trim,0,-.095,-.01,.3);                // trigger
+    mk(B(.012,.012,.13),edge,0,-.125,.0);                      // trigger guard (bottom)
+    mk(B(.012,.05,.012),edge,0,-.1,-.075);                     // trigger guard (front)
+    mk(B(.012,.04,.14),edge,.058,.01,-.05);                    // ejection port
+    // scope
+    mk(C(.04,.5),edge,0,.17,-.05,Math.PI/2);                   // tube
+    mk(C(.058,.14),steel,0,.17,-.34,Math.PI/2);                // objective bell
+    mk(C(.05,.1),steel,0,.17,.24,Math.PI/2);                   // eyepiece
+    mk(C(.052,.012),0x4fd6ff,0,.17,-.41,Math.PI/2);            // front lens
+    mk(B(.05,.07,.05),trim,0,.12,-.18); mk(B(.05,.07,.05),trim,0,.12,.1);   // mounts
+    mk(C(.018,.04),trim,0,.222,-.02);                          // elevation turret
+    mk(C(.018,.04),trim,.062,.17,-.02).rotation.z = Math.PI/2; // windage turret
+    addMag('operator',0,-.16,-.12,.1);                         // removable magazine
+    // bolt handle (animated after every shot)
+    const bolt = new THREE.Group(); bolt.position.set(.07,.02,.12); gun.add(bolt);
+    gun.userData.bolt = bolt; gun.userData.boltHome = bolt.position.clone();
+    const bm = (geo, col, x, y, z, rz) => { const m = new THREE.Mesh(geo, gunMat(col)); m.position.set(x, y, z); if (rz) m.rotation.z = rz; bolt.add(m); };
+    bm(B(.03,.05,.1),steel2,0,0,0);                            // bolt body
+    bm(C(.011,.09),trim,.05,0,0,Math.PI/2);                    // handle arm
+    bm(new THREE.SphereGeometry(.026,12,10),edge,.1,0,0);      // knob
+    rightHand(() => buildVandalGripHand(gun));
+    leftHand(() => buildVandalSupportHand(gun));
+    wrapPose(.02, .07, -.04);
+    gun.position.set(.3, -.28, -.8); return;
+  }
+  if (w.name === 'Shotgun') {
+    const poly = 0x23262b, poly2 = 0x343a42, metal = 0x6e7681, amber = 0xe08a3a, edge = 0x14161a, trim = 0xb9b9c9;
+    mk(B(.105,.13,.5),poly,0,0,.05);                           // receiver
+    mk(B(.08,.03,.5),poly2,0,.08,.05);                         // top rail
+    mk(B(.012,.045,.17),edge,.057,.01,.0);                     // ejection port
+    for (let i=0;i<6;i++) mk(B(.07,.012,.02),edge,0,.098,-.18+i*.075);      // rail ticks
+    mk(C(.03,.95),metal,0,.02,-.75,Math.PI/2);                 // barrel
+    mk(C(.036,.62),poly2,0,-.04,-.62,Math.PI/2);               // magazine tube
+    mk(C(.04,.05),trim,0,-.04,-.945,Math.PI/2);                // tube cap
+    mk(C(.038,.05),edge,0,.02,-1.235,Math.PI/2);               // muzzle ring
+    mk(C(.024,.01),0x000000,0,.02,-1.262,Math.PI/2);           // bore
+    mk(B(.012,.04,.012),amber,0,.065,-1.2);                    // front bead sight
+    mk(B(.04,.012,.04),edge,0,.098,.2);                        // rear sight
+    mk(B(.085,.16,.4),poly,0,-.025,.47,.08);                   // stock
+    mk(B(.10,.19,.03),edge,0,-.025,.68,.08);                   // recoil pad
+    mk(B(.014,.14,.25),amber,-.044,-.025,.47,.08);             // stock accent
+    mk(B(.06,.19,.08),edge,0,-.13,.13,-.28);                   // pistol grip
+    mk(B(.012,.045,.012),trim,0,-.095,-.01,.3);                // trigger
+    mk(B(.012,.012,.13),edge,0,-.125,.0);                      // trigger guard (bottom)
+    mk(B(.012,.05,.012),edge,0,-.1,-.075);                     // trigger guard (front)
+    for (let i=0;i<4;i++) mk(C(.016,.07),0xc0392b,-.062,.035,-.02+i*.045,Math.PI/2);   // side shell carrier
+    // pump forend (slides back and forward after every shot)
+    const pump = new THREE.Group(); gun.add(pump); gun.userData.pump = pump;
+    const pm = (geo, col, x, y, z) => { const m = new THREE.Mesh(geo, gunMat(col)); m.position.set(x, y, z); pump.add(m); };
+    pm(B(.10,.105,.36),poly2,0,-.005,-.43);
+    for (let i=0;i<7;i++) pm(B(.104,.108,.008),edge,0,-.005,-.57+i*.05);   // grip grooves
+    pm(B(.012,.02,.3),amber,.054,.02,-.43);
+    rightHand(() => buildVandalGripHand(gun));
+    leftHand(() => buildVandalSupportHand(gun));
+    wrapPose(.02, .07, -.04);
+    gun.position.set(.3, -.27, -.76); return;
+  }
   // Sheriff revolver
   mk(B(0.07, 0.08, 0.36), D, 0, 0.02, -0.17);                  // barrel block
   mk(B(0.05, 0.015, 0.36), 0xd3d7dc, 0, 0.067, -0.17);         // top strip
@@ -1048,7 +1124,7 @@ function detachPart(mesh, bot, hitPoint) {
   const dir=piece.position.clone().sub(hitPoint).add(new THREE.Vector3((Math.random()-.5)*.7,.65,(Math.random()-.5)*.7)).normalize();
   flyingParts.push({mesh:piece,vel:dir.multiplyScalar(1.8+Math.random()*1.8),spin:new THREE.Vector3(Math.random()*5,Math.random()*5,Math.random()*5),life:1.15});
 }
-function damageBot(bot, hit, headshot) {
+function damageBot(bot, hit, headshot, dmg = 1) {
   if(!bot || !bots.includes(bot) || !hit || !hit.point) return;
   const point=hit.point.clone();
   burstFX(point, headshot ? 0xb44cff : 0x65caff, headshot ? 10 : 4, headshot ? 3.5 : 1.5);
@@ -1069,7 +1145,7 @@ function damageBot(bot, hit, headshot) {
   }
   playSfx('hit', .7); showCombatNotice('hit','HIT','BODY SHOT');
   detachPart(hit.object,bot,point);
-  bot.userData.health--;
+  bot.userData.health -= dmg;
   if(bot.userData.health<=0) {
     burstFX(bot.position.clone().add(new THREE.Vector3(0,1,0)),0xb44cff,8,2.8);
     registerElimination(false); killBot(bot);
@@ -1336,11 +1412,16 @@ function updateReloadAnim(dt) {
   const mag = gun.userData.mag, lh = gun.userData.lh, drum = gun.userData.drum;
   if (!reloading) {
     if (mag) { mag.visible = true; mag.position.copy(gun.userData.magHome); mag.rotation.x = gun.userData.magRotX; }
-    if (lh) lh.position.multiplyScalar(.6);
+    if (lh) { if (gun.userData.pump) lh.position.set(0, 0, gun.userData.pump.position.z); else lh.position.multiplyScalar(.6); }   // support hand rides the pump
     return;
   }
   const p = Math.max(0, Math.min(1, 1 - reloadLeft / reloadTotal));
   if (drum && p > .15 && p < .85) drum.rotation.y += dt * 16 * Math.sin((p - .15) / .7 * Math.PI);
+  if (gun.userData.kind === 'shotgun') {              // shell-by-shell: hand shuttles between the pouch and the loading port
+    const tt = reloadTotal - reloadLeft;
+    if (lh) { if (tt < .35 || tt > reloadTotal - .45) lh.position.multiplyScalar(.8); else lh.position.copy(handPath(((tt - .35) / .52) % 1, _rh)); }
+    return;
+  }
   if (!mag) return;
   if (p >= RELOAD_OUT && !reloadOutDone) { reloadOutDone = true; dropMagazine(); playSfx('magOut', .8); }
   if (p >= RELOAD_SEAT && !reloadSeatDone) { reloadSeatDone = true; playSfx('magIn', .85); gun.position.z = (gun.userData.rz ?? gun.position.z) + .05; }
@@ -1369,6 +1450,7 @@ function ensureAudio() {
 }
 function playSfx(kind, volume=1) {
   try {
+    if (MECH_KINDS.has(kind)) { playMech(kind, volume); return; }
     const ctx = ensureAudio(), t = ctx.currentTime;
     const out = ctx.createGain();
     out.gain.setValueAtTime(Math.max(.001, volume * masterVolume * 1.45), t);
@@ -1476,49 +1558,92 @@ function audioExtras() {
   const nd = noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   roomVerb = conv;
 }
-// Each firearm has its own report: Vandal = hard crack, Phantom = suppressed "thip", Sheriff = boom + metal ring.
+// ---------- Phase 3: firearm audio ----------
+// Every report is built from layers: transient click, high crack, mid "bang" body, low thump, decaying tail and room reverb.
+// A shared soft-clip + compressor bus keeps loud weapons punchy without harsh distortion, and a voice limiter stops
+// full-auto fire from stacking into noise (when 4+ shots overlap, the newest shots drop their tail/reverb layers).
+let gunBus = null, gunShaper = null, longVerb = null; const gunVoices = [];
+function gunAudio() {
+  const ctx = ensureAudio(); audioExtras();
+  if (gunBus) return;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 10; comp.attack.value = .002; comp.release.value = .18;
+  comp.connect(ctx.destination);
+  gunBus = ctx.createGain(); gunBus.connect(comp);
+  const n = 1024, curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; curve[i] = Math.tanh(x * 1.8) / Math.tanh(1.8); }
+  gunShaper = ctx.createWaveShaper(); gunShaper.curve = curve; gunShaper.oversample = '2x'; gunShaper.connect(gunBus);
+  const len = Math.floor(ctx.sampleRate * 2.2), ir = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2) * (i < ctx.sampleRate * .04 ? .4 : 1); }
+  longVerb = ctx.createConvolver(); longVerb.buffer = ir;
+  const lw = ctx.createGain(); lw.gain.value = .7; longVerb.connect(lw); lw.connect(gunBus);
+}
+function gNoise(ctx, dest, t, dur, lvl, type, f0, f1, q) {
+  const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = dur > .9; s.playbackRate.value = .9 + Math.random() * .2;
+  const f = ctx.createBiquadFilter(); f.type = type; f.Q.value = q || .8; f.frequency.setValueAtTime(f0, t);
+  if (f1) f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  const g = ctx.createGain(); g.gain.setValueAtTime(Math.max(.0001, lvl), t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  s.connect(f); f.connect(g); g.connect(dest); s.start(t, Math.random() * .4); s.stop(t + dur + .03);
+}
+function gThump(ctx, dest, t, f0, f1, lvl, dur) {
+  const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(18, f1), t + dur);
+  g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(lvl, t + .004); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + .02);
+}
 const GUN_SOUND = {
-  vandal:  { vol: .85, hp: 900,  crack: .72, crackT: .13, thud: [105, 42], thudL: .85, thudT: .24, tail: [620, 190], tailL: .16, tailT: .50, verb: .30 },
-  phantom: { vol: .62, hp: 1500, crack: .40, crackT: .08, thud: [88, 48],  thudL: .55, thudT: .16, tail: [900, 320], tailL: .10, tailT: .34, verb: .22, thip: true },
-  sheriff: { vol: 1.0, hp: 600,  crack: .85, crackT: .18, thud: [72, 30],  thudL: 1.0, thudT: .38, tail: [880, 260], tailL: .22, tailT: .75, verb: .42, ring: true }
+  vandal:   { vol: 1.0,  click: .9, crack: [1800, .85, .09],  bang: [3200, 300, 1.0, .17],  thump: [130, 42, 1.0, .20],  tail: [900, 200, .35, .55],  verb: .35, long: 0 },
+  phantom:  { vol: .75,  click: .5, crack: [900,  .35, .06],  bang: [1400, 250, .75, .13],  thump: [110, 48, .7, .15],   tail: [700, 220, .18, .35],  verb: .22, long: 0, thip: true },
+  sheriff:  { vol: 1.1,  click: 1,  crack: [1500, 1.0, .12],  bang: [2600, 180, 1.1, .26],  thump: [95, 32, 1.2, .32],    tail: [800, 160, .45, .85],  verb: .45, long: .1, ring: true },
+  operator: { vol: 1.35, click: 1,  crack: [1200, 1.1, .16],  bang: [2200, 90, 1.35, .5],   thump: [75, 24, 1.5, .6],     tail: [700, 90, .6, 1.6],    verb: .5,  long: .85, sub: true },
+  shotgun:  { vol: 1.3,  click: 1,  crack: [800,  1.2, .14],  bang: [2800, 120, 1.5, .34],  thump: [85, 26, 1.5, .5],     tail: [800, 110, .5, 1.0],   verb: .5,  long: .35, sub: true }
 };
 function playGunshot() {
   try {
-    ensureAudio(); audioExtras();
-    const p = GUN_SOUND[weapon] || GUN_SOUND.vandal, pv = 1 + (Math.random() - .5) * .08, t = audio.currentTime;
-    const master = audio.createGain();
-    master.gain.setValueAtTime(p.vol * masterVolume, t); master.gain.exponentialRampToValueAtTime(.001, t + p.tailT + .22); master.connect(audio.destination);
-    const send = audio.createGain(); send.gain.value = p.verb; master.connect(send); send.connect(roomVerb);
-    // powder crack
-    const crack = audio.createBufferSource(); crack.buffer = noiseBuf;
-    const hp = audio.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = p.hp;
-    const cg = audio.createGain(); cg.gain.setValueAtTime(p.crack, t); cg.gain.exponentialRampToValueAtTime(.001, t + p.crackT);
-    crack.connect(hp); hp.connect(cg); cg.connect(master); crack.start(t, Math.random() * .5); crack.stop(t + p.crackT + .02);
-    // low thump
-    const thud = audio.createOscillator(), low = audio.createBiquadFilter(), tg = audio.createGain();
-    thud.type = 'sine'; thud.frequency.setValueAtTime(p.thud[0] * pv, t); thud.frequency.exponentialRampToValueAtTime(p.thud[1], t + p.thudT - .05);
-    low.type = 'lowpass'; low.frequency.value = 180;
-    tg.gain.setValueAtTime(p.thudL, t); tg.gain.exponentialRampToValueAtTime(.001, t + p.thudT);
-    thud.connect(low); low.connect(tg); tg.connect(master); thud.start(t); thud.stop(t + p.thudT + .01);
-    // metallic body tail
-    const tail = audio.createOscillator(), tl = audio.createGain(), band = audio.createBiquadFilter();
-    tail.type = 'triangle'; tail.frequency.setValueAtTime(p.tail[0] * pv, t + .025); tail.frequency.exponentialRampToValueAtTime(p.tail[1], t + p.tailT - .02);
-    band.type = 'bandpass'; band.frequency.value = 520; band.Q.value = .7;
-    tl.gain.setValueAtTime(p.tailL, t + .025); tl.gain.exponentialRampToValueAtTime(.001, t + p.tailT);
-    tail.connect(band); band.connect(tl); tl.connect(master); tail.start(t + .025); tail.stop(t + p.tailT + .02);
-    if (p.thip) {            // suppressor puff + bolt tick
-      const o = audio.createOscillator(), og = audio.createGain();
-      o.type = 'square'; o.frequency.setValueAtTime(1800, t + .012); o.frequency.exponentialRampToValueAtTime(900, t + .05);
-      og.gain.setValueAtTime(.001, t + .012); og.gain.linearRampToValueAtTime(.06, t + .02); og.gain.exponentialRampToValueAtTime(.001, t + .06);
-      o.connect(og); og.connect(master); o.start(t + .012); o.stop(t + .07);
+    const ctx = ensureAudio(); gunAudio();
+    const p = GUN_SOUND[weapon] || GUN_SOUND.vandal, t = ctx.currentTime, pv = 1 + (Math.random() - .5) * .06;
+    for (let i = gunVoices.length - 1; i >= 0; i--) if (gunVoices[i] < t) gunVoices.splice(i, 1);
+    const crowded = gunVoices.length >= 4;
+    gunVoices.push(t + (crowded ? .25 : p.tail[3]));
+    const out = ctx.createGain(); out.gain.setValueAtTime(p.vol * masterVolume * 1.2, t); out.connect(gunShaper);
+    if (!crowded) {
+      const rv = ctx.createGain(); rv.gain.value = p.verb; out.connect(rv); rv.connect(roomVerb);
+      if (p.long) { const lv = ctx.createGain(); lv.gain.value = p.long; out.connect(lv); lv.connect(longVerb); }
     }
-    if (p.ring) {            // revolver ring-out
-      const o = audio.createOscillator(), og = audio.createGain();
-      o.type = 'sine'; o.frequency.setValueAtTime(1450 * pv, t + .02); o.frequency.exponentialRampToValueAtTime(1380, t + .6);
-      og.gain.setValueAtTime(.001, t + .02); og.gain.linearRampToValueAtTime(.07, t + .03); og.gain.exponentialRampToValueAtTime(.001, t + .62);
-      o.connect(og); og.connect(master); o.start(t + .02); o.stop(t + .64);
-    }
+    gNoise(ctx, out, t, .006, p.click, 'highpass', 4500, 0, .7);                        // transient click
+    gNoise(ctx, out, t, p.crack[2], p.crack[1], 'highpass', p.crack[0], 0, .8);         // crack
+    gNoise(ctx, out, t, p.bang[3], p.bang[2], 'lowpass', p.bang[0], p.bang[1], .9);     // body bang
+    gThump(ctx, out, t, p.thump[0] * pv, p.thump[1], p.thump[2], p.thump[3]);           // low thump
+    if (p.sub) gThump(ctx, out, t, 52 * pv, 20, p.thump[2] * .8, p.thump[3] + .15);      // sub-bass for the big guns
+    if (!crowded) gNoise(ctx, out, t + .02, p.tail[3], p.tail[2], 'lowpass', p.tail[0], p.tail[1], .7);   // tail
+    if (p.thip) { gNoise(ctx, out, t + .012, .05, .3, 'bandpass', 1800, 900, 3); }       // suppressor puff
+    if (p.ring) gThump(ctx, out, t + .02, 1450 * pv, 1380, .07, .6);                     // revolver ring-out
   } catch (e) {}
+}
+// Reload / handling sounds: filtered-noise clicks and clacks plus short low thunks (no electronic beeps).
+const MECH_KINDS = new Set(['switch', 'reload', 'magOut', 'magIn', 'boltBack', 'boltFwd', 'shellIn', 'shellStart', 'pump', 'chamber', 'scope']);
+function playMech(kind, volume = 1) {
+  const ctx = ensureAudio(); audioExtras();
+  const t0 = ctx.currentTime, out = ctx.createGain();
+  out.gain.value = Math.max(.001, volume * masterVolume * 1.5); out.connect(ctx.destination);
+  const send = ctx.createGain(); send.gain.value = .18; out.connect(send); send.connect(roomVerb);
+  const nz = (dur, lvl, type, f0, f1, q, at = 0) => gNoise(ctx, out, t0 + at, dur, lvl, type, f0, f1, q);
+  const th = (f0, f1, dur, lvl, at = 0) => gThump(ctx, out, t0 + at, f0, f1, lvl, dur);
+  const click = (at, lvl = 1, f = 3200) => { nz(.012, .55 * lvl, 'highpass', f, 0, .8, at); nz(.05, .28 * lvl, 'bandpass', f * .5, f * .35, 3, at); th(260, 120, .05, .22 * lvl, at); };
+  const clack = (at, lvl = 1) => { nz(.03, .5 * lvl, 'bandpass', 1800, 900, 2.5, at); th(180, 70, .09, .5 * lvl, at); nz(.09, .16 * lvl, 'bandpass', 900, 500, 1.2, at + .01); };
+  switch (kind) {
+    case 'switch': nz(.14, .12, 'bandpass', 800, 3000, 1, 0); click(.07, .6); clack(.16, .5); break;
+    case 'reload': click(0, .8); nz(.1, .1, 'bandpass', 1200, 500, 1.2, .03); break;
+    case 'magOut': click(0, .9); nz(.12, .18, 'bandpass', 1200, 400, 1.2, .02); th(200, 90, .08, .4, .1); break;
+    case 'magIn': nz(.09, .2, 'bandpass', 500, 1500, 1.2, 0); clack(.09, 1); click(.16, .6); break;
+    case 'chamber': clack(0, 1); clack(.11, .8); break;
+    case 'boltBack': nz(.07, .3, 'bandpass', 900, 2200, 1.5, 0); clack(.06, .7); break;
+    case 'boltFwd': clack(0, 1); click(.05, .6); break;
+    case 'shellIn': nz(.025, .4, 'bandpass', 2400, 1200, 3, 0); th(300, 150, .05, .3, 0); click(.05, .5, 2500); break;
+    case 'shellStart': click(0, .8); nz(.1, .1, 'bandpass', 1000, 500, 1.2, .03); break;
+    case 'pump': clack(0, 1); nz(.06, .18, 'bandpass', 700, 1800, 1.2, .08); clack(.17, 1.1); break;
+    case 'scope': click(0, .5, 2600); nz(.14, .12, 'bandpass', 1500, 3200, 1.2, .02); break;
+  }
 }
 // Surface-aware bullet impact: pitch/material depends on what was hit, volume falls with distance,
 // panned by direction, rate-limited so full-auto fire can't flood the audio graph.
@@ -1602,6 +1727,15 @@ function beep(f, d) {
     o.connect(v); v.connect(audio.destination); o.start(); o.stop(audio.currentTime + d);
   } catch (e) {}
 }
+// ---------- weapon slots / loadout ----------
+// Slot 1 = the selected primary (Vandal, Phantom, Operator or Shotgun), slot 2 = Sheriff, slot 3 = Knife.
+// Slot 1 remembers the primary the player picked, so Knife -> Key 1 brings back that same weapon (never a forced Vandal).
+const PRIMARY_WEAPONS = ['vandal', 'phantom', 'operator', 'shotgun'];
+const loadout = { primary: 'vandal' };
+try { const sp0 = localStorage.getItem('vtm3d_primary'); if (PRIMARY_WEAPONS.includes(sp0)) loadout.primary = sp0; } catch (e) {}
+const slotWeapon = n => n === 1 ? loadout.primary : (n === 2 ? 'sheriff' : 'knife');
+function equipSlot(n) { setWeapon(slotWeapon(n)); }
+const gunScale = k => ({ vandal: .78, phantom: .78, sheriff: .82, knife: .85, operator: .7, shotgun: .78 }[k] || .78);
 function setWeapon(k) {
   if(!WEAPONS[k]) return;
   if(weapon===k && gun.children.length) return;
@@ -1609,11 +1743,12 @@ function setWeapon(k) {
   if(changingWeapon) playSfx(k==='knife' ? 'knifeSwitch' : (weapon==='knife' ? 'knifeSwitch' : 'switch'), 1);
   setAiming(false);
   weapon=k; reloading=false; knifeAtk=null;
-  if(k==='vandal'||k==='phantom') $('weapon').value=k;
+  if (PRIMARY_WEAPONS.includes(k)) { loadout.primary = k; try { localStorage.setItem('vtm3d_primary', k); } catch (e) {} }
+  $('weapon').value = k;
   $('wep').textContent=WEAPONS[k].name;
   if(!gun.children.length) {
     buildGun(WEAPONS[k]);
-    gun.scale.setScalar({vandal:.78,phantom:.78,sheriff:.82,knife:.85}[k]||.78);
+    gun.scale.setScalar(gunScale(k));
     gun.userData.baseX=gun.position.x; gun.userData.baseY=gun.position.y; gun.userData.baseZ=gun.position.z; gun.userData.rz=gun.position.z;
     swapPhase=0; swapKey=null;
     return;
@@ -1697,7 +1832,7 @@ function drawXh() {
   const t = xh.thick, gp = xh.gap, ln = xh.len;
   if (ln > 0) { bar(-t / 2, -gp - ln, t, ln); bar(-t / 2, gp, t, ln); bar(-gp - ln, -t / 2, ln, t); bar(gp, -t / 2, ln, t); }
   if (xh.dot) bar(-t / 2, -t / 2, t, t);
-  if(!aiming) aimFov=xh.fov;
+  if (scopeLevel) aimFov = scopeFov(scopeLevel); else if(!aiming) aimFov=xh.fov;
   camera.fov = xh.fov; camera.updateProjectionMatrix();
   $('fovv').textContent = xh.fov;
   try { localStorage.setItem('vtm3d_xh', JSON.stringify(xh)); } catch (e) {}
@@ -1716,7 +1851,7 @@ function startGame() {
   infinite = $('infinite').checked;
   bots.slice().forEach(removeBot);
   applyMode();
-  score = shots = hits = heads = wave = 0; killCount = 0; $('kills').textContent = '0'; ammo.vandal = MAG.vandal; ammo.phantom = MAG.phantom; ammo.sheriff = MAG.sheriff; reloading = false; knifeAtk = null; clearDecals(); clearDroppedMags(); clearCorpses(); yaw = pitch = recP = recY = spray = 0;
+  score = shots = hits = heads = wave = 0; killCount = 0; $('kills').textContent = '0'; ammo.vandal = MAG.vandal; ammo.phantom = MAG.phantom; ammo.sheriff = MAG.sheriff; ammo.operator = MAG.operator; ammo.shotgun = MAG.shotgun; shellState = null; reloading = false; knifeAtk = null; clearDecals(); clearDroppedMags(); clearCorpses(); yaw = pitch = recP = recY = spray = 0;
   camera.position.set(0, 1.68, startZ); eyeY = 1.68; jumpY = 0; vy = 0; grounded = true; landImpact = 0; resetGunRig();
   level = LEVELS[$('difficulty').value];
   try { localStorage.setItem('vtm3d_name', $('name').value); } catch (e) {}
@@ -1796,7 +1931,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 document.addEventListener('mousemove', e => {
   if (document.pointerLockElement !== el) return;
-  const k = sens * 0.07 * RAD;
+  const k = sens * 0.07 * RAD * (scopeLevel ? Math.tan(camera.fov * RAD / 2) / Math.tan(xh.fov * RAD / 2) : 1);   // sensitivity follows the zoom
   yaw -= e.movementX * k;
   pitch = Math.max(-1.5, Math.min(1.5, pitch - e.movementY * k));
 });
@@ -1819,13 +1954,31 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Space' && document.pointerLockElement === el) e.preventDefault();
   if (e.code === 'Escape' && !e.repeat && state === 'paused' && document.pointerLockElement !== el) tryResume();
   keys[e.code] = true;
-  if (e.code === 'Digit1') setWeapon('vandal');
-  if (e.code === 'Digit2') setWeapon('sheriff');
-  if (e.code === 'Digit3') setWeapon('knife');
+  if (e.code === 'Digit1') equipSlot(1);
+  if (e.code === 'Digit2') equipSlot(2);
+  if (e.code === 'Digit3') equipSlot(3);
   if (e.code === 'KeyR' && state === 'playing') startReload();
 });
 document.addEventListener('keyup', e => { keys[e.code] = false; });
+// ---------- Operator scope: right click toggles, mouse wheel switches between two magnifications ----------
+const SCOPE_MAG = [1, 2.5, 5];                       // level 0 = off, 1 = standard zoom, 2 = high zoom
+let scopeLevel = 0, scopeBlend = 0;
+const scopeFov = level => 2 * Math.atan(Math.tan(xh.fov * RAD / 2) / SCOPE_MAG[level]) / RAD;
+function setScope(level) {
+  if (level && !(weapon === 'operator' && state === 'playing' && !reloading && swapPhase === 0)) level = 0;
+  if (level === scopeLevel) return;
+  const was = scopeLevel; scopeLevel = level;
+  $('scopeOverlay').classList.toggle('active', level > 0);
+  $('crosshair').style.opacity = level ? '0' : '1';
+  if (level) { aimFov = scopeFov(level); $('scopeMag').textContent = '\u00D7' + SCOPE_MAG[level]; if (!was) playSfx('scope', .6); }
+  else aimFov = xh.fov;
+}
+document.addEventListener('wheel', e => {
+  if (document.pointerLockElement !== el || weapon !== 'operator' || !scopeLevel) return;
+  e.preventDefault(); setScope(e.deltaY < 0 ? 2 : 1);
+}, { passive: false });
 function setAiming(on) {
+  if (!on) setScope(0);
   const canAim = weapon==='vandal' || weapon==='phantom';
   aiming = !!on && canAim && state==='playing';
   aimFov = aiming ? 48 : xh.fov;
@@ -1836,6 +1989,7 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('mousedown', e => {
   if(e.button===2 && document.pointerLockElement===el){
     if(weapon==='knife'){knifeAttack('alt',performance.now());return;}   // right click: alternate knife attack
+    if (weapon === 'operator') { if (state === 'playing' && swapPhase === 0) setScope(scopeLevel ? 0 : 1); return; }
     setAiming(true);return;
   }
   if (e.button !== 0 || document.pointerLockElement !== el) return;
@@ -1843,7 +1997,7 @@ document.addEventListener('mousedown', e => {
   const w = WEAPONS[weapon], now = performance.now();
   if (w.auto === false && state === 'playing' && now - lastShot >= w.interval) fire(now);
 });
-document.addEventListener('mouseup', e => { if (e.button === 0) firing = false; if(e.button===2) setAiming(false); });
+document.addEventListener('mouseup', e => { if (e.button === 0) firing = false; if(e.button===2 && weapon !== 'operator') setAiming(false); });
 document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==el)setAiming(false);});
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
@@ -1852,25 +2006,93 @@ addEventListener('resize', () => {
 
 const crouching = () => keys.ControlLeft || keys.ControlRight || keys.KeyC;
 const walking = () => keys.ShiftLeft || keys.ShiftRight;
-const MAG = { vandal: 25, phantom: 30, sheriff: 6 };
-const ammo = { vandal: 25, phantom: 30, sheriff: 6 };
+const MAG = { vandal: 25, phantom: 30, sheriff: 6, operator: 5, shotgun: 6 };
+const ammo = { vandal: 25, phantom: 30, sheriff: 6, operator: 5, shotgun: 6 };
 let reloading = false, reloadLeft = 0;
+let infiniteAmmo = false, shellState = null, pumpAt = -1e9;
+try { infiniteAmmo = localStorage.getItem('vtm3d_infAmmo') === '1'; $('infAmmo').checked = infiniteAmmo; } catch (e) {}
+$('infAmmo').addEventListener('change', e => { infiniteAmmo = e.target.checked; try { localStorage.setItem('vtm3d_infAmmo', infiniteAmmo ? '1' : '0'); } catch (err) {} });
+function cancelReload() { reloading = false; reloadLeft = 0; shellState = null; }
 function startReload() {
   const w = WEAPONS[weapon];
-  if (w.melee || reloading || ammo[weapon] >= MAG[weapon]) return;
-  reloading = true; reloadLeft = reloadTotal = w.reload; reloadOutDone = reloadSeatDone = false; playSfx('reload', .75); toast('RELOADING', w.reload * 1000);
+  // With Infinite Ammo the magazine never drops, but R still plays the full reload animation.
+  if (w.melee || reloading || (!infiniteAmmo && ammo[weapon] >= MAG[weapon])) return;
+  setScope(0);
+  reloading = true; reloadOutDone = reloadSeatDone = false;
+  if (w.shell) {                                    // shell by shell: 0.35 s prep + 0.52 s per shell + 0.45 s pump
+    shellState = { need: Math.max(1, MAG[weapon] - ammo[weapon]), done: 0 };
+    reloadLeft = reloadTotal = .35 + shellState.need * .52 + .45; playSfx('shellStart', .8);
+  } else { reloadLeft = reloadTotal = w.reload; playSfx('reload', .8); }
+  toast('RELOADING', reloadTotal * 1000);
+}
+// Per-shot mechanical sounds: Operator bolt cycle, shotgun pump.
+function weaponCycleSfx(w) {
+  if (w.sniper) setTimeout(() => { if (weapon === 'operator' && state === 'playing') { playSfx('boltBack', .9); setTimeout(() => { if (weapon === 'operator' && state === 'playing') playSfx('boltFwd', .9); }, 330); } }, 420);
+  else if (w.pellets) setTimeout(() => { if (weapon === 'shotgun' && state === 'playing') playSfx('pump', 1); }, 260);
+}
+function postShot(w) {
+  recP += w.p * RAD; recY += (Math.random() - .5) * w.y * RAD; spray++;
+  gun.position.z = gun.userData.rz + 0.16;
+  if (ammo[weapon] <= 0) startReload();
+}
+// Shotgun: 12 independent pellets in a cone. Each pellet is ray-cast on its own (walls and cover stop it, range is limited).
+// Damage is summed per target, so it kills at close range and falls off with distance. Scoring is per trigger pull.
+function fireShotgun(w) {
+  const moving = ((keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD) && !walking() && !crouching()) || !grounded;
+  let spread = w.spread * (moving ? 1.25 : 1); if (crouching() && !moving) spread *= .8;
+  const t = Math.tan(camera.fov / 2 * RAD), perBot = new Map();
+  let impacts = 0;
+  ray.far = w.range;
+  try {
+    for (let i = 0; i < w.pellets; i++) {
+      const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * spread * RAD;
+      ray.setFromCamera({ x: Math.cos(a) * r / (t * camera.aspect), y: Math.sin(a) * r / t }, camera);
+      const botHit = ray.intersectObjects(bots, true)[0];
+      const worldHit = ray.intersectObjects(solidTargets, false)[0];
+      if (worldHit && (!botHit || worldHit.distance < botHit.distance)) { if (impacts++ < 4) bulletImpact(worldHit, ray.ray.direction); continue; }
+      if (botHit && botHit.object.botRef) {
+        const head = botHit.object.userData.part === 'head', bot = botHit.object.botRef;
+        const e = perBot.get(bot) || { dmg: 0, hit: botHit, head: false };
+        e.dmg += head ? w.headPelletDmg : w.pelletDmg;
+        if (head && !e.head) { e.head = true; e.hit = botHit; }
+        perBot.set(bot, e);
+      }
+    }
+  } finally { ray.far = Infinity; }
+  let anyHit = false, anyHead = false;
+  perBot.forEach((e, bot) => { anyHit = true; if (e.head) anyHead = true; damageBot(bot, e.hit, false, e.dmg); });
+  if (anyHit) {
+    hits++; score += anyHead ? 150 : 50; if (anyHead) heads++;
+    const h = $('hit'); h.className = 'show' + (anyHead ? ' head' : ''); setTimeout(() => h.className = '', 120);
+    if (anyHead) toast('HEADSHOT', 400);
+  }
+  postShot(w);
+}
+// Bolt handle (Operator) and pump forend (Shotgun) animation, driven by the time since the last shot.
+function updateWeaponAnim(now) {
+  const gu = gun.userData;
+  if (gu.bolt) {
+    const u = Math.max(0, Math.min(1, (now - lastFire - 200) / 650)), sb = Math.sin(u * Math.PI);
+    gu.bolt.position.z = gu.boltHome.z + sb * .14; gu.bolt.rotation.z = sb * 1.1;
+  }
+  if (gu.pump) {
+    const t0 = Math.max(lastFire + 230, pumpAt), u = Math.max(0, Math.min(1, (now - t0) / 340));
+    gu.pump.position.z = Math.sin(u * Math.PI) * .11;
+  }
 }
 function fire(now) {
   const w = WEAPONS[weapon];
   if (w.melee) { knifeAttack('slash', now); return; }       // left click: normal slash
-  if (reloading) return;
+  if (reloading) { if (w.shell && ammo[weapon] > 0) cancelReload(); else return; }     // shotguns can be fired mid-reload
   if (ammo[weapon] <= 0) { startReload(); return; }
-  ammo[weapon]--;
-  lastShot = lastFire = now; shots++; playGunshot();
+  if (!infiniteAmmo) ammo[weapon]--;
+  lastShot = lastFire = now; shots++; playGunshot(); weaponCycleSfx(w);
+  if (w.pellets) { fireShotgun(w); return; }
   const moving = ((keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD) && !walking() && !crouching()) || !grounded;
   let sp = moving ? 0.9 : (spray > 2 ? Math.min(0.45, (spray - 2) * 0.06) : 0);
   if(aiming) sp*=.38;
   if (crouching() && !moving) sp *= 0.5;
+  if (w.sniper) sp = scopeLevel ? (moving ? 1.1 : 0) : w.hipSpread * (moving ? 1.25 : 1);   // Operator: pin-point when scoped, wild from the hip
   const t = Math.tan(camera.fov / 2 * RAD);
   const ox = (Math.random() - 0.5) * 2 * sp * RAD / (t * camera.aspect);
   const oy = (Math.random() - 0.5) * 2 * sp * RAD / t;
@@ -1883,14 +2105,13 @@ function fire(now) {
   if (hit && hit.object.botRef) {
     const head = hit.object.userData.part === 'head';
     hits++; score += head ? 150 : 50; if (head) heads++;
-    damageBot(hit.object.botRef,hit,head);
-    beep(head ? 900 : 500, 0.08);
+    damageBot(hit.object.botRef,hit,head,w.bodyDmg||1);
     const h = $('hit'); h.className = 'show' + (head ? ' head' : '');
     setTimeout(() => h.className = '', 120);
     if (head) toast('HEADSHOT', 400);
   }
   // recoil
-  recP += (spray < 10 ? w.p : w.p * 0.2) * RAD * (aiming?.62:1);
+  recP += (spray < 10 ? w.p : w.p * 0.2) * RAD * ((aiming||scopeLevel)?.62:1);
   recY += Math.sin(spray * 0.8) * w.y * Math.min(1, spray / 5) * RAD;
   spray++;
   gun.position.z = gun.userData.rz + 0.12;
@@ -1970,21 +2191,29 @@ function loop(now) {
   const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
   // Smooth weapon draw / holster transition; rebuild only at the lowered midpoint.
   if(swapPhase>0) {
-    if(swapPhase===1){ gun.position.y += (-.98-gun.position.y)*Math.min(1,dt*16); if(gun.position.y<-.82){ if(swapKey){buildGun(WEAPONS[swapKey]);swapKey=null;gun.scale.setScalar({vandal:.78,phantom:.78,sheriff:.82,knife:.85}[weapon]||.78);gun.userData.baseX=gun.position.x;gun.userData.baseY=gun.position.y;gun.userData.baseZ=gun.position.z;gun.userData.rz=gun.position.z;gun.position.y=-.98;} swapPhase=2; } }
+    if(swapPhase===1){ gun.position.y += (-.98-gun.position.y)*Math.min(1,dt*16); if(gun.position.y<-.82){ if(swapKey){buildGun(WEAPONS[swapKey]);swapKey=null;gun.scale.setScalar(gunScale(weapon));gun.userData.baseX=gun.position.x;gun.userData.baseY=gun.position.y;gun.userData.baseZ=gun.position.z;gun.userData.rz=gun.position.z;gun.position.y=-.98;} swapPhase=2; } }
     else { gun.position.y += ((gun.userData.baseY??-.27)-gun.position.y)*Math.min(1,dt*13); if(Math.abs(gun.position.y-(gun.userData.baseY??-.27))<.018) swapPhase=0; }
   }
   gun.position.z += (gun.userData.rz - gun.position.z) * 0.3;
   camera.fov += (aimFov-camera.fov)*Math.min(1,dt*10); camera.updateProjectionMatrix();
+  scopeBlend += ((scopeLevel ? 1 : 0) - scopeBlend) * Math.min(1, dt * 10); gunRig.visible = scopeBlend < .5;   // weapon model is hidden behind the scope
   updateCombatFX(dt);
   if (!updateKnife(dt)) {
     gun.rotation.x += ((reloading ? 0.9 : 0) - gun.rotation.x) * 0.2; gun.rotation.z *= 0.7; gun.rotation.y *= 0.7;
     if (weapon === 'knife' && gun.userData.baseX !== undefined) gun.position.x += (gun.userData.baseX - gun.position.x) * 0.3;
   }
-  updateReloadAnim(dt); updateDroppedMags(dt); updateDecals(now / 1000);
+  updateWeaponAnim(now); updateReloadAnim(dt); updateDroppedMags(dt); updateDecals(now / 1000);
 
-  $('ammo').textContent = WEAPONS[weapon].melee ? '' : (reloading ? 'Reloading' : ammo[weapon] + '/' + MAG[weapon]);
+  $('ammo').textContent = WEAPONS[weapon].melee ? '' : (reloading ? 'Reloading' : (infiniteAmmo ? '\u221E' : ammo[weapon] + '/' + MAG[weapon]));
   if (state === 'playing') {
-    if (reloading) { reloadLeft -= dt; if (reloadLeft <= 0) { reloading = false; ammo[weapon] = MAG[weapon]; } }
+    if (reloading) {
+      reloadLeft -= dt;
+      if (shellState && WEAPONS[weapon].shell) {
+        const due = Math.min(shellState.need, Math.max(0, Math.floor((reloadTotal - reloadLeft - .35) / .52 + .34)));
+        while (shellState.done < due) { shellState.done++; ammo[weapon] = Math.min(MAG[weapon], ammo[weapon] + 1); playSfx('shellIn', .85); }
+        if (reloadLeft <= 0) { ammo[weapon] = MAG[weapon]; shellState = null; reloading = false; pumpAt = performance.now(); playSfx('pump', 1); }
+      } else if (reloadLeft <= 0) { reloading = false; ammo[weapon] = MAG[weapon]; }
+    }
     if (firing && WEAPONS[weapon].auto !== false && now - lastShot >= WEAPONS[weapon].interval) fire(now);
     if (now - lastFire > 250) {
       spray = 0;
@@ -2048,7 +2277,8 @@ function loop(now) {
 }
 camera.position.set(0, 1.68, 0);
 drawWorldTimer(DURATION);
-setWeapon('vandal');
+setWeapon(loadout.primary);
+if (soundVolumeControl) { try { const sv = localStorage.getItem('vtm3d_vol'); if (sv !== null) soundVolumeControl.value = sv; } catch (e) {} masterVolume = Number(soundVolumeControl.value); }
 applyMode();
 loadBest();
 renderLb();
