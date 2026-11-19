@@ -12,60 +12,90 @@
   <div class="hud-item"><small>SCORE</small><b id="score">0</b></div>
   <div class="hud-item"><small>ACCURACY</small><b id="acc">0%</b></div>
   <div class="hud-item"><small>BEST</small><b id="best">0</b></div>
+  <div class="hud-item kill-item"><small>KILLS</small><b id="kills">0</b></div>
   <div class="hud-item weapon-item"><small>WEAPON</small><b id="wep">VANDAL</b></div>
   <div class="hud-item ammo-item"><small>AMMO</small><b id="ammo">25/25</b></div>
 </div>
 <div id="worldTimer" aria-live="polite">30</div>
 <div id="crosshair"></div>
 <div id="adsOverlay" aria-hidden="true"><div class="ads-reticle"><i></i><b></b><span class="ads-dot"></span></div><span class="ads-label">TACTICAL AIM</span></div>
-<div id="hit">X</div>
-<div id="toast"></div>
+<div id="hit" aria-hidden="true">×</div>
+<div id="combatNotice" aria-live="polite" aria-atomic="true"></div>
+<div id="toast" aria-live="polite"></div>
 <div id="overlay">
-  <div class="card">
-    <h2 id="title">Start Training Aim</h2>
-    <p id="info">Choose your settings, then start training. Aim for the head!</p>
-    <label>Sensitivity
-      <input type="range" id="sensRange" min="0.05" max="2" step="0.01" value="0.4">
-      <input type="number" id="sensNum" min="0.05" max="2" step="0.01" value="0.4">
-    </label>
-    <label>Training Time
-      <select id="duration">
-        <option value="10">10 seconds</option>
-        <option value="20">20 seconds</option>
-        <option value="30" selected>30 seconds</option>
-      </select>
-    </label>
-<label>Weapon
-      <select id="weapon">
-        <option value="vandal">Vandal</option>
-        <option value="phantom">Phantom</option>
-      </select>
-    </label>
-    <label>Difficulty
-      <select id="difficulty">
-        <option value="easy">Easy</option>
-        <option value="medium" selected>Medium</option>
-        <option value="hard">Hard</option>
-      </select>
-    </label>
-    <label>Name <input type="text" id="name" maxlength="16" value="Player"></label>
-    <details>
-      <summary>Settings (FOV, crosshair)</summary>
-      <label>FOV <input type="range" id="fov" min="60" max="110" value="80"><b id="fovv">80</b></label>
-      <label>Crosshair color <input type="color" id="xhColor" value="#00ff9c"></label>
-      <label>Length <input type="range" id="xhLen" min="0" max="20" value="8"></label>
-      <label>Thickness <input type="range" id="xhThick" min="1" max="5" value="2"></label>
-      <label>Gap <input type="range" id="xhGap" min="0" max="12" value="4"></label>
-      <label><input type="checkbox" id="xhDot" checked> Center dot</label>
-    </details>
-    <div class="btns">
-      <button id="play">Start Training Aim</button>
-      <button id="restart" hidden>Restart</button>
+  <main class="card menu-card">
+    <div class="menu-brand">
+      <span class="brand-mark">VT</span>
+      <div>
+        <p class="menu-kicker">TACTICAL AIM FACILITY</p>
+        <h1>VALORANT <span>TRAINING AIM</span></h1>
+      </div>
     </div>
-    <h3 id="lbh">Leaderboard</h3>
-    <ol id="lb"></ol>
-    <p class="small">Mouse = aim. Hold right click = ADS (Vandal / Phantom). Left click = shoot. WASD = move. Hold click = spray. 1 = Vandal, Weapon menu = Vandal / Phantom, 2 = Pistol, 3 = Knife. Hold Ctrl (or C) = crouch. Hold Shift = walk. R = reload. Esc = pause. Headshot 150, body 50. Choose 10, 20, or 30 seconds.</p>
-  </div>
+    <div class="menu-divider"></div>
+    <section class="menu-intro">
+      <p class="section-tag">TRAINING PROTOCOL // 01</p>
+      <h2 id="title">Start Training Aim</h2>
+      <p id="info">Sharpen your aim. Track your accuracy. Improve every round.</p>
+    </section>
+    <section id="settingsPanel" class="settings-panel" hidden>
+      <div class="panel-heading">
+        <h3>TRAINING SETTINGS</h3>
+        <span>CONFIGURATION</span>
+      </div>
+      <label>Sensitivity
+        <input type="range" id="sensRange" min="0.05" max="2" step="0.01" value="0.4">
+        <input type="number" id="sensNum" min="0.05" max="2" step="0.01" value="0.4">
+      </label>
+      <label>Training Time
+        <select id="duration">
+          <option value="10">10 seconds</option>
+          <option value="20">20 seconds</option>
+          <option value="30" selected>30 seconds</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="infinite"> Infinite Training (no time limit)</label>
+      <label>Weapon
+        <select id="weapon">
+          <option value="vandal">Vandal</option>
+          <option value="phantom">Phantom</option>
+        </select>
+      </label>
+      <label>Difficulty
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </label>
+      <label>Sound Volume
+        <input type="range" id="soundVolume" min="0" max="1" step="0.05" value="0.75">
+      </label>
+      <label>Name <input type="text" id="name" maxlength="16" value="Player"></label>
+      <details>
+        <summary>Advanced Settings — FOV & Crosshair</summary>
+        <label>FOV <input type="range" id="fov" min="60" max="110" value="80"><b id="fovv">80</b></label>
+        <label>Crosshair color <input type="color" id="xhColor" value="#00ff9c"></label>
+        <label>Length <input type="range" id="xhLen" min="0" max="20" value="8"></label>
+        <label>Thickness <input type="range" id="xhThick" min="1" max="5" value="2"></label>
+        <label>Gap <input type="range" id="xhGap" min="0" max="12" value="4"></label>
+        <label><input type="checkbox" id="xhDot" checked> Center dot</label>
+      </details>
+    </section>
+    <div class="menu-actions">
+      <button id="play" class="primary-action">PLAY TRAINING</button>
+      <button id="settingsToggle" class="secondary-action" type="button" aria-expanded="false" aria-controls="settingsPanel">SETTINGS</button>
+      <button id="fsBtn" class="secondary-action" type="button" title="Fullscreen lets the game capture Ctrl+W / Ctrl+D (Chromium browsers)">FULLSCREEN</button>
+      <button id="restart" hidden>Restart</button>
+      <button id="mainMenu" class="secondary-action" type="button" hidden>MAIN MENU</button>
+    </div>
+    <div class="menu-footer">
+      <div class="footer-label">PERSONAL BEST</div>
+      <h3 id="lbh">Leaderboard</h3>
+      <ol id="lb"></ol>
+      <p class="small">MOUSE Aim · LEFT CLICK Fire / Knife Slash · RIGHT CLICK ADS / Knife Alt Attack · WASD Move · CTRL/C Crouch · SHIFT Walk · SPACE Jump · R Reload · 1 Vandal · 2 Sheriff · 3 Knife · ESC Pause</p>
+      <p class="small">Reserved browser shortcuts: Ctrl+W (close tab), Ctrl+T and Ctrl+N cannot be blocked by a webpage. Crouch with <b>C</b> instead of Ctrl, or press FULLSCREEN (Chrome/Edge) so the game can capture them. A "Leave site?" prompt also appears during a run.</p>
+    </div>
+  </main>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="script.js"></script>
