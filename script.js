@@ -1493,7 +1493,7 @@ function createShotSoundPool(src, voiceCount = 4) {
   };
 }
 
-const customKnifeSwitchSound = createShotSoundPool('Assets/sounds/knife-switch.mp3', 2);
+const customKnifeSwitchSound = createShotSoundPool('Assets/sounds/Knife-switch.mp3', 2);
 
 const customGunSounds = {
   vandal: createShotSoundPool('Assets/sounds/Vandal.mp3', 4),
@@ -1597,7 +1597,7 @@ function showCombatNotice(type, title, subtitle='') {
   if(noticeTimer) clearTimeout(noticeTimer);
   noticeTimer=setTimeout(()=>{el.className='';},760);
 }
-const killAudio = new Audio('Assets/sounds/kill.mp3');
+const killAudio = new Audio('Assets/sounds/Kill.mp3');
 killAudio.preload = 'auto';
 function playKillSound() {
   const a = killAudio.cloneNode();            // para pwedeng magpatong ang sunod-sunod na kill
