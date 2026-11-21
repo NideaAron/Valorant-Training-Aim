@@ -1496,7 +1496,7 @@ function createShotSoundPool(src, voiceCount = 4) {
 const customKnifeSwitchSound = createShotSoundPool('Assets/sounds/knife-switch.mp3', 2);
 
 const customGunSounds = {
-  vandal: createShotSoundPool('Assets/sounds/vandal.mp3', 4),
+  Vandal: createShotSoundPool('Assets/sounds/Vandal.mp3', 4),
   phantom: createShotSoundPool('Assets/sounds/phantom.mp3', 5),
   operator: createShotSoundPool('Assets/sounds/operator.mp3', 3)
 };
