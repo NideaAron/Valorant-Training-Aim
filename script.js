@@ -1600,9 +1600,11 @@ function showCombatNotice(type, title, subtitle='') {
 const killAudio = new Audio('Assets/sounds/Kill.mp3');
 killAudio.preload = 'auto';
 function playKillSound() {
-  const a = killAudio.cloneNode();            // para pwedeng magpatong ang sunod-sunod na kill
+  const a = new Audio('Assets/sounds/Kill.mp3');
   a.volume = Math.min(1, typeof masterVolume === 'number' ? masterVolume : 1);
-  a.play().catch(() => {});
+  a.play().catch(error => {
+    console.error('Kill sound error:', error);
+  });
 }
 function registerElimination(headshot) {
   killCount++;
