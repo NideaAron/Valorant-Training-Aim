@@ -43,7 +43,8 @@ scene.fog = new THREE.Fog(0x202a35, 58, 92);
 const camera = new THREE.PerspectiveCamera(80, innerWidth / innerHeight, 0.1, 100);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -58,6 +59,27 @@ facilityLight.shadow.mapSize.set(2048, 2048);
 Object.assign(facilityLight.shadow.camera, { left: -28, right: 28, top: 24, bottom: -24, near: 1, far: 90 });
 facilityLight.shadow.bias = -0.0005;
 scene.add(facilityLight);
+
+// Graphics presets: keep gameplay and assets identical; adjust only rendering cost.
+function applyGraphicsQuality(mode) {
+  const cores = navigator.hardwareConcurrency || 4;
+  const memory = navigator.deviceMemory || 4;
+  const chosen = mode === 'auto' ? ((cores <= 4 || memory <= 4) ? 'low' : (cores <= 6 || memory <= 8 ? 'medium' : 'high')) : mode;
+  const settings = {
+    low:    { pixel: 0.85, shadows: false, shadowSize: 512 },
+    medium: { pixel: 1.0, shadows: true, shadowSize: 1024 },
+    high:   { pixel: 1.5, shadows: true, shadowSize: 2048 }
+  }[chosen] || { pixel: 1.0, shadows: true, shadowSize: 1024 };
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, settings.pixel));
+  renderer.shadowMap.enabled = settings.shadows;
+  facilityLight.castShadow = settings.shadows;
+  facilityLight.shadow.mapSize.set(settings.shadowSize, settings.shadowSize);
+  facilityLight.shadow.map && (facilityLight.shadow.map.dispose(), facilityLight.shadow.map = null);
+  facilityLight.shadow.needsUpdate = true;
+  renderer.setSize(innerWidth, innerHeight);
+  try { localStorage.setItem('vtm3d_graphics', mode); } catch (e) {}
+}
+
 
 function box(w, h, d, color, x, y, z, parent) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
@@ -1442,6 +1464,43 @@ let aiming = false, aimFov = 80, swapPhase = 0, swapTarget = 0, swapKey = null;
 const keys = {};
 const ray = new THREE.Raycaster();
 let audio;
+
+// Custom MP3 weapon sounds.
+// A small voice pool lets each bullet trigger its own single-shot sound
+// without cutting off the previous shot during rapid fire.
+function createShotSoundPool(src, voiceCount = 4) {
+  const voices = Array.from({ length: voiceCount }, () => {
+    const sound = new Audio(src);
+    sound.preload = 'auto';
+    return sound;
+  });
+  let nextVoice = 0;
+
+  return function playShot(volume = 0.75) {
+    const sound = voices[nextVoice];
+    nextVoice = (nextVoice + 1) % voices.length;
+
+    sound.pause();
+    sound.currentTime = 0;
+    sound.volume = Math.max(0, Math.min(1, volume));
+
+    const playback = sound.play();
+    if (playback && typeof playback.catch === 'function') {
+      playback.catch(error => {
+        console.warn('Gunshot audio failed:', error);
+      });
+    }
+  };
+}
+
+const customKnifeSwitchSound = createShotSoundPool('Assets/sounds/knife-switch.mp3', 2);
+
+const customGunSounds = {
+  vandal: createShotSoundPool('Assets/sounds/vandal.mp3', 4),
+  phantom: createShotSoundPool('Assets/sounds/phantom.mp3', 5),
+  operator: createShotSoundPool('Assets/sounds/operator.mp3', 3)
+};
+
 let killCount = 0, noticeTimer = null, hitTimer = null, playerStepClock = 0, enemyStepClock = 0, masterVolume = 0.75;
 function ensureAudio() {
   audio = audio || new (window.AudioContext || window.webkitAudioContext)();
@@ -1538,12 +1597,19 @@ function showCombatNotice(type, title, subtitle='') {
   if(noticeTimer) clearTimeout(noticeTimer);
   noticeTimer=setTimeout(()=>{el.className='';},760);
 }
+const killAudio = new Audio('Assets/sounds/kill.mp3');
+killAudio.preload = 'auto';
+function playKillSound() {
+  const a = killAudio.cloneNode();            // para pwedeng magpatong ang sunod-sunod na kill
+  a.volume = Math.min(1, typeof masterVolume === 'number' ? masterVolume : 1);
+  a.play().catch(() => {});
+}
 function registerElimination(headshot) {
   killCount++;
   const k=$('kills'); if(k){k.textContent=killCount; k.classList.remove('bump'); void k.offsetWidth; k.classList.add('bump');}
   if(headshot) setTimeout(()=>showCombatNotice('eliminated','ELIMINATED','HEADSHOT CONFIRMED'),650);
   else showCombatNotice('eliminated','ELIMINATED','TARGET DOWN');
-  playSfx('eliminate',.9);
+  playKillSound();
 }
 // Shared room reverb + 1 s noise buffer, built once with the AudioContext.
 let roomVerb = null, noiseBuf = null, lastImpactSfx = 0;
@@ -1599,6 +1665,12 @@ const GUN_SOUND = {
   shotgun:  { vol: 1.3,  click: 1,  crack: [800,  1.2, .14],  bang: [2800, 120, 1.5, .34],  thump: [85, 26, 1.5, .5],     tail: [800, 110, .5, 1.0],   verb: .5,  long: .35, sub: true }
 };
 function playGunshot() {
+  const playCustomShot = customGunSounds[weapon];
+  if (playCustomShot) {
+    playCustomShot(masterVolume);
+    return;
+  }
+
   try {
     const ctx = ensureAudio(); gunAudio();
     const p = GUN_SOUND[weapon] || GUN_SOUND.vandal, t = ctx.currentTime, pv = 1 + (Math.random() - .5) * .06;
@@ -1740,11 +1812,13 @@ function setWeapon(k) {
   if(!WEAPONS[k]) return;
   if(weapon===k && gun.children.length) return;
   const changingWeapon = weapon !== k && gun.children.length > 0;
-  if(changingWeapon) playSfx(k==='knife' ? 'knifeSwitch' : (weapon==='knife' ? 'knifeSwitch' : 'switch'), 1);
+  if(changingWeapon) {
+    if (k === 'knife' || weapon === 'knife') customKnifeSwitchSound(masterVolume);
+    else playSfx('switch', 1);
+  }
   setAiming(false);
   weapon=k; reloading=false; knifeAtk=null;
   if (PRIMARY_WEAPONS.includes(k)) { loadout.primary = k; try { localStorage.setItem('vtm3d_primary', k); } catch (e) {} }
-  $('weapon').value = k;
   $('wep').textContent=WEAPONS[k].name;
   if(!gun.children.length) {
     buildGun(WEAPONS[k]);
@@ -1818,7 +1892,13 @@ try { $('name').value = localStorage.getItem('vtm3d_name') || 'Player'; } catch 
 $('sensRange').addEventListener('input', e => setSens(e.target.value));
 $('sensNum').addEventListener('change', e => setSens(e.target.value));
 $('difficulty').addEventListener('change', () => { loadBest(); renderLb(); });
-$('weapon').addEventListener('change', e => setWeapon(e.target.value));
+document.querySelectorAll('[data-weapon]').forEach(button => {
+  button.addEventListener('click', () => {
+    setWeapon(button.dataset.weapon);
+    $('weaponPicker').hidden = true;
+    if (state === 'paused') tryResume();
+  });
+});
 
 const xh = { color: '#00ff9c', len: 8, thick: 2, gap: 4, dot: true, fov: 80 };
 try { Object.assign(xh, JSON.parse(localStorage.getItem('vtm3d_xh') || '{}')); } catch (e) {}
@@ -1847,8 +1927,8 @@ $('xhDot').addEventListener('change', e => { xh.dot = e.target.checked; drawXh()
 $('lbh').textContent = 'Leaderboard (' + (SUPABASE_URL ? 'online' : 'local') + ')';
 
 function startGame() {
-  DURATION = Number($('duration').value) || 30;
-  infinite = $('infinite').checked;
+  DURATION = Number($('duration').value) || 0;
+  infinite = Number($('duration').value) === 0;
   bots.slice().forEach(removeBot);
   applyMode();
   score = shots = hits = heads = wave = 0; killCount = 0; $('kills').textContent = '0'; ammo.vandal = MAG.vandal; ammo.phantom = MAG.phantom; ammo.sheriff = MAG.sheriff; ammo.operator = MAG.operator; ammo.shotgun = MAG.shotgun; shellState = null; reloading = false; knifeAtk = null; clearDecals(); clearDroppedMags(); clearCorpses(); yaw = pitch = recP = recY = spray = 0;
@@ -1864,12 +1944,19 @@ function startGame() {
 const el = renderer.domElement;
 $('settingsToggle').addEventListener('click', () => {
   const panel = $('settingsPanel');
+  $('weaponPicker').hidden = true;
   panel.hidden = !panel.hidden;
   $('settingsToggle').setAttribute('aria-expanded', String(!panel.hidden));
   $('settingsToggle').textContent = panel.hidden ? 'SETTINGS' : 'CLOSE SETTINGS';
 });
+const graphicsControl = $('graphicsQuality');
+try { graphicsControl.value = localStorage.getItem('vtm3d_graphics') || 'auto'; } catch (e) {}
+graphicsControl.addEventListener('change', e => applyGraphicsQuality(e.target.value));
+applyGraphicsQuality(graphicsControl.value);
+
 $('play').addEventListener('click', () => {
   $('settingsPanel').hidden = true;
+  $('weaponPicker').hidden = true;
   $('settingsToggle').setAttribute('aria-expanded', 'false');
   $('settingsToggle').textContent = 'SETTINGS';
   if (state === 'over') {
@@ -1897,22 +1984,23 @@ function returnToMenu() {
   drawWorldTimer(DURATION); loadBest();
 }
 $('mainMenu').addEventListener('click', returnToMenu);
-try { $('infinite').checked = localStorage.getItem('vtm3d_infinite') === '1'; } catch (e) {}
-function syncInfinite() {
-  $('duration').disabled = $('infinite').checked;
-  try { localStorage.setItem('vtm3d_infinite', $('infinite').checked ? '1' : '0'); } catch (e) {}
+try { $('duration').value = localStorage.getItem('vtm3d_duration') || '30'; } catch (e) {}
+function syncDuration() {
+  try { localStorage.setItem('vtm3d_duration', $('duration').value); } catch (e) {}
 }
-$('infinite').addEventListener('change', syncInfinite); syncInfinite();
+$('duration').addEventListener('change', syncDuration); syncDuration();
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === el;
   $('overlay').classList.toggle('hidden', locked);
   if (locked && document.activeElement) document.activeElement.blur();
   if (locked) {
     if (state === 'paused') {
-      const wantInf = $('infinite').checked;                    // the setting may have been changed while paused
+      const wantInf = Number($('duration').value) === 0;                    // the setting may have been changed while paused
       if (infinite && !wantInf) { DURATION = Number($('duration').value) || 30; startTime = performance.now(); }   // infinite -> timed: fresh timer
       else startTime += performance.now() - pauseAt;
       infinite = wantInf; state = 'playing';
+      $('play').hidden = false;
+      $('title').textContent = 'Training';
     }
     else startGame();
   } else {
@@ -1920,10 +2008,12 @@ document.addEventListener('pointerlockchange', () => {
     for (const k in keys) keys[k] = false;
     if (state === 'playing') {
       state = 'paused'; pauseAt = performance.now();
-      $('title').textContent = 'Paused';
-      $('info').textContent = 'Paused. Press Esc ulit o i-click ang Resume.';
-      $('play').disabled = true; setTimeout(() => { $('play').disabled = false; }, 1300);
-      $('play').textContent = 'Resume';
+      if ($('weaponPicker').hidden) {
+        $('title').textContent = 'Settings';
+        $('info').textContent = 'Adjust your settings, then press ESC again to return to training.';
+        $('settingsPanel').hidden = false;
+      }
+      $('play').hidden = true;
       $('restart').hidden = false;
       $('mainMenu').hidden = false;
     }
@@ -1936,13 +2026,10 @@ document.addEventListener('mousemove', e => {
   pitch = Math.max(-1.5, Math.min(1.5, pitch - e.movementY * k));
 });
 function tryResume() {
-  const wait = Math.max(0, 1300 - (performance.now() - pauseAt));
-  setTimeout(() => {
-    try { const p = el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
-  }, wait);
+  try { const p = el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
 }
 document.addEventListener('pointerlockerror', () => {
-  $('info').textContent = 'Hindi pa pwede mag-resume. Maghintay saglit, tapos i-click ang Resume.';
+  $('info').textContent = 'Hindi ma-lock ang mouse. I-click ang RESUME para bumalik.';
 });
 document.addEventListener('keyup', e => { if (e.code === 'Space' && document.pointerLockElement === el) e.preventDefault(); });
 // Browser shortcuts that a page is ALLOWED to cancel (Ctrl/Cmd+D bookmark, +S save, +F find, +G, +P print, +U source).
@@ -1952,7 +2039,20 @@ const BROWSER_SHORTCUT_KEYS = new Set(['KeyD', 'KeyS', 'KeyF', 'KeyG', 'KeyP', '
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && !e.altKey && BROWSER_SHORTCUT_KEYS.has(e.code) && (state === 'playing' || document.pointerLockElement === el)) e.preventDefault();
   if (e.code === 'Space' && document.pointerLockElement === el) e.preventDefault();
-  if (e.code === 'Escape' && !e.repeat && state === 'paused' && document.pointerLockElement !== el) tryResume();
+  if (e.code === 'Escape' && !e.repeat && state === 'paused' && document.pointerLockElement !== el) {
+    e.preventDefault();
+    $('weaponPicker').hidden = true;
+    $('settingsPanel').hidden = true;
+    tryResume();
+  }
+  if (e.code === 'KeyB' && !e.repeat && state === 'playing' && document.pointerLockElement === el) {
+    e.preventDefault();
+    $('weaponPicker').hidden = false;
+    $('settingsPanel').hidden = true;
+    $('title').textContent = 'Choose Your Weapon';
+    $('info').textContent = 'Select a loadout. Press ESC to return to training.';
+    try { document.exitPointerLock(); } catch (err) {}
+  }
   keys[e.code] = true;
   if (e.code === 'Digit1') equipSlot(1);
   if (e.code === 'Digit2') equipSlot(2);
